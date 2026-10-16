@@ -109,6 +109,7 @@ private:
 	bool _VirusInstalled = false;
 	DWORD _StudentMainPid = 0;
 	DWORD _MasterHelperPid = 0;
+	DWORD _BlackSlientPid = 0;
 	std::wstring _StudentMainPath;
 	bool _StudentMainFileLocated = false;
 	bool _StudentMainFileLocatedByProcess = false;
@@ -152,6 +153,7 @@ private:
 	bool LocateStudentMainLocation();
 	bool LocateStudentMain(DWORD *outFirstPid);
 	bool LocateMasterHelper(DWORD *outFirstPid);
+	bool LocateBlackSlient(DWORD *outFirstPid);
 	bool CheckPidFilterd(DWORD pid);
 	void AddFilterdPid(DWORD pid);
 	void ClearFilterdPid();
@@ -178,6 +180,8 @@ private:
 	void ManualFull(bool fk);
 	void ManualTop(bool fk);
 	bool ChecIsJIYuWindow(HWND hWnd, LPDWORD outPid, LPDWORD outTid);
+	bool IsBlackSlientWindow(HWND hWnd);
+	bool IsMultiRenderClassWindow(HWND hWnd);
 	bool CheckIsTargetWindow(LPWSTR text, HWND hWnd);
 	bool CheckWindowTextIsGb(const wchar_t* text);
 	void FixWindow(HWND hWnd, LPWSTR text);

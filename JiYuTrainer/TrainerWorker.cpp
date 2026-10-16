@@ -59,8 +59,8 @@ void TrainerWorkerInternal::Init()
 	hDesktop = OpenDesktop(L"Default", 0, FALSE, DESKTOP_ENUMERATE);
 	UpdateScreenSize();
 
-	if (LocateStudentMainLocation()) currentLogger->Log(L"已定位极域电子教室位置： %s", _StudentMainPath.c_str());
-	else currentLogger->LogWarn(L"无法定位极域电子教室位置");
+	if (LocateStudentMainLocation()) currentLogger->Log(L"已定位联想电子教室位置： %s", _StudentMainPath.c_str());
+	else currentLogger->LogWarn(L"无法定位联想电子教室位置");
 
 	UpdateState();
 	UpdateStudentMainInfo(false);
@@ -176,7 +176,7 @@ void TrainerWorkerInternal::HandleMessageFromVirus(LPCWSTR buf)
 					_StudentMainFileLocated = false;
 				_StudentMainPid = 0;
 
-				currentLogger->Log(L"插入了奇怪的 StudentMain.exe");
+				currentLogger->Log(L"插入了奇怪的 Student.exe");
 
 				UpdateState();
 				UpdateStudentMainInfo(false);
@@ -207,7 +207,7 @@ void TrainerWorkerInternal::SendMessageToVirus(LPCWSTR buf)
 bool TrainerWorkerInternal::Kill(bool autoWork)
 {
 	if (_StudentMainPid <= 4) {
-		currentLogger->LogError(L"未找到极域主进程");
+		currentLogger->LogError(L"未找到联想主进程");
 		return false;
 	}
 	if (_StudentMainControlled){
@@ -259,7 +259,7 @@ bool TrainerWorkerInternal::Kill(bool autoWork)
 		else if (status != STATUS_INVALID_CID && status != STATUS_INVALID_HANDLE) {
 			currentLogger->LogError(L"结束进程错误：0x%08X，请手动结束", status);
 			if (!autoWork)
-				MessageBox(hWndMain, L"无法结束极域电子教室，您需要使用其他工具手动结束", L"JiYuTrainer - 错误", MB_ICONERROR);;
+				MessageBox(hWndMain, L"无法结束联想电子教室，您需要使用其他工具手动结束", L"JiYuTrainer - 错误", MB_ICONERROR);;
 			CloseHandle(hProcess);
 			return false;
 		}
@@ -274,7 +274,7 @@ bool TrainerWorkerInternal::Kill(bool autoWork)
 	}
 
 FORCEKILL:
-	if (XDriverLoaded() && MessageBox(hWndMain, L"普通无法结束极域，是否调用驱动结束极域？\n（驱动可能不稳定，请慎用。您也可以使用 PCHunter 等安全软件进行强杀）", L"JiYuTrainer - 提示", MB_ICONEXCLAMATION | MB_YESNO | MB_TOPMOST) == IDYES)
+	if (XDriverLoaded() && MessageBox(hWndMain, L"普通无法结束联想，是否调用驱动结束联想？\n（驱动可能不稳定，请慎用。您也可以使用 PCHunter 等安全软件进行强杀）", L"JiYuTrainer - 提示", MB_ICONEXCLAMATION | MB_YESNO | MB_TOPMOST) == IDYES)
 	{
 		if (KForceKill(_StudentMainPid, &status)) {
 			_StudentMainPid = 0;
@@ -299,9 +299,9 @@ bool TrainerWorkerInternal::KillStAuto()
 bool TrainerWorkerInternal::Rerun(bool autoWork)
 {
 	if (!_StudentMainFileLocated) {
-		currentLogger->LogWarn(L"未找到极域电子教室");
+		currentLogger->LogWarn(L"未找到联想电子教室");
 		if (!autoWork && _Callback)
-			_Callback->OnSimpleMessageCallback(L"<h5>我们无法在此计算机上找到极域电子教室，您需要手动启动</h5>");
+			_Callback->OnSimpleMessageCallback(L"<h5>我们无法在此计算机上找到联想电子教室，您需要手动启动</h5>");
 		return false;
 	}
 	return  SysHlp::RunApplication(_StudentMainPath.c_str(), NULL);
@@ -320,6 +320,8 @@ void* TrainerWorkerInternal::RunOperation(TrainerWorkerOp op)
 	}
 	case TrainerWorkerOp1: {
 		WCHAR s[300]; swprintf_s(s, L"hk:path:%s", currentApp->GetFullPath());
+		MsgCenterSendToVirus(s, hWndMain);
+		swprintf_s(s, L"hk:mhwnd:%d", (LONG)hWndMain);
 		MsgCenterSendToVirus(s, hWndMain);
 		swprintf_s(s, L"hk:inipath:%s", currentApp->GetPartFullPath(PART_INI));
 		MsgCenterSendToVirus(s, hWndMain);
@@ -369,12 +371,25 @@ void TrainerWorkerInternal::RunResetPid()
 	//CK GET STAT DELAY
 	if (_NextLoopGetCkStat) {
 		_NextLoopGetCkStat = false;
+				{ //Adapter: feed the freshly injected virus with our main window hwnd and paths
+			WCHAR s[512];
+			swprintf_s(s, L"hk:mhwnd:%d", (LONG)hWndMain);
+			MsgCenterSendToVirus(s, hWndMain);
+			swprintf_s(s, L"hk:path:%s", currentApp->GetFullPath());
+			MsgCenterSendToVirus(s, hWndMain);
+			swprintf_s(s, L"hk:inipath:%s", currentApp->GetPartFullPath(PART_INI));
+			MsgCenterSendToVirus(s, hWndMain);
+		}
 		SendMessageToVirus(L"hk:ckstat");
 	}
 
 	//Find jiyu main process
 	DWORD newPid = 0;
-	if (LocateStudentMain(&newPid)) { //找到极域
+		DWORD bsPid = 0;
+	if (LocateBlackSlient(&bsPid)) _BlackSlientPid = bsPid;
+	else _BlackSlientPid = 0;
+
+if (LocateStudentMain(&newPid)) { //找到联想
 
 		if (_StudentMainPid != newPid)
 		{
@@ -384,11 +399,11 @@ void TrainerWorkerInternal::RunResetPid()
 				_VirusInstalled = true;
 				_NextLoopGetCkStat = true;
 
-				currentLogger->Log(L"向 StudentMain.exe [%d] 注入DLL成功", newPid);
+				currentLogger->Log(L"向 Student.exe [%d] 注入DLL成功", newPid);
 			}
-			else  currentLogger->LogError(L"向 StudentMain.exe [%d] 注入DLL失败", newPid);
+			else  currentLogger->LogError(L"向 Student.exe [%d] 注入DLL失败", newPid);
 
-			currentLogger->Log(L"已锁定 StudentMain.exe [%d]", newPid);
+			currentLogger->Log(L"已锁定 Student.exe [%d]", newPid);
 
 			UpdateState();
 			UpdateStudentMainInfo(false);
@@ -400,7 +415,7 @@ void TrainerWorkerInternal::RunResetPid()
 		{
 			_StudentMainPid = 0;
 
-			currentLogger->Log(L"极域主进程 StudentMain.exe 已退出", newPid);
+			currentLogger->Log(L"联想主进程 Student.exe 已退出", newPid);
 
 			UpdateState();
 			UpdateStudentMainInfo(false);
@@ -408,20 +423,18 @@ void TrainerWorkerInternal::RunResetPid()
 
 	}
 
-	/*
 	newPid = 0;
 	if (LocateMasterHelper(&newPid)) {
 		if (_MasterHelperPid != newPid)
 		{
 			_MasterHelperPid = newPid;
-			if (InstallVirusForMaster()) currentLogger->Log(L"向 MasterHelper.exe [%d] 注入DLL成功", newPid);
-			else  currentLogger->LogError(L"向 MasterHelper.exe [%d] 注入DLL失败", newPid);
+			if (InstallVirusForMaster()) currentLogger->Log(L"向 MultiRender.exe [%d] 注入DLL成功", newPid);
+			else  currentLogger->LogError(L"向 MultiRender.exe [%d] 注入DLL失败", newPid);
 		}
 	}
 	else {
 		_MasterHelperPid = 0;
 	}
-	*/
 }
 
 bool TrainerWorkerInternal::FlushProcess()
@@ -564,7 +577,7 @@ READ_EX:
 	return false;
 }
 bool TrainerWorkerInternal::AppointStudentMainLocation(LPCWSTR fullPath) {
-	if (Path::GetFileName(fullPath) != L"StudentMain.exe")	return false;
+	if (Path::GetFileName(fullPath) != L"Student.exe")	return false;
 	if (Path::Exists(fullPath)) 
 	{
 		_StudentMainPath = fullPath;
@@ -572,7 +585,7 @@ bool TrainerWorkerInternal::AppointStudentMainLocation(LPCWSTR fullPath) {
 		_StudentMainFileLocatedByProcess = false;
 
 		currentApp->GetSettings()->SetSettingStr(L"StudentMainPath", fullPath);
-		currentLogger->Log(L"成功手动定位极域电子教室位置： %s", fullPath);
+		currentLogger->Log(L"成功手动定位联想电子教室位置： %s", fullPath);
 
 		UpdateStudentMainInfo(false);
 		return true;
@@ -581,7 +594,7 @@ bool TrainerWorkerInternal::AppointStudentMainLocation(LPCWSTR fullPath) {
 }
 bool TrainerWorkerInternal::LocateStudentMainLocation()
 {
-	//注册表查找 极域 路径
+	//注册表查找 联想 路径
 	WCHAR Data[MAX_PATH];
 	if (MRegReadKeyString64And32(HKEY_LOCAL_MACHINE,
 		L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\e-Learning Class V6.0",
@@ -593,7 +606,7 @@ bool TrainerWorkerInternal::LocateStudentMainLocation()
 			_StudentMainFileLocated = true;
 			return true;
 		}
-		else currentLogger->Log(L"读取注册表 [DisplayIcon] 获得了一个无效的极域电子教室路径 : %s", Data);
+		else currentLogger->Log(L"读取注册表 [DisplayIcon] 获得了一个无效的联想电子教室路径 : %s", Data);
 	}
 	else currentLogger->LogWarn2(L"MRegReadKeyString64And32 Failed : %s (%d)", PRINT_LAST_ERROR_STR);
 
@@ -601,7 +614,7 @@ bool TrainerWorkerInternal::LocateStudentMainLocation()
 	wstring appointStudentMainPath  = currentApp->GetSettings()->GetSettingStr(L"StudentMainPath", L"", MAX_PATH);
 	if (!StrEmepty(appointStudentMainPath.c_str()) && Path::Exists(appointStudentMainPath)) {
 		wstring fileName = Path::GetFileName(appointStudentMainPath);
-		if (StrEqual(fileName.c_str(), L"StudentMain.exe")) {
+		if (StrEqual(fileName.c_str(), L"Student.exe")) {
 			_StudentMainPath = appointStudentMainPath;
 			_StudentMainFileLocated = true;
 			return true;
@@ -609,13 +622,23 @@ bool TrainerWorkerInternal::LocateStudentMainLocation()
 	}
 
 	//直接尝试查找
-	LPCWSTR mabeInHere[6] = {
-		L"c:\\Program Files\\Mythware\\极域课堂管理系统软件V6.0 2016 豪华版\\StudentMain.exe",
+		//Lenovo teaching system install paths (primary target)
+	static LPCWSTR lxtcPaths[] = { L"C:\\Program Files (x86)\\Lenovo teaching system\\Student.exe", L"C:\\Program Files (x86)\\Lenovo teaching system\\MultiRender.exe", nullptr };
+	for (int li = 0; lxtcPaths[li]; li++) {
+		if (Path::Exists(lxtcPaths[li])) {
+			_StudentMainPath = lxtcPaths[li];
+			_StudentMainFileLocated = true;
+			_StudentMainFileLocatedByProcess = false;
+			return true;
+		}
+	}
+LPCWSTR mabeInHere[6] = {
+		L"c:\\Program Files\\Mythware\\联想课堂管理系统软件V6.0 2016 豪华版\\StudentMain.exe",
 		L"C:\\Program Files\\Mythware\\e-Learning Class\\StudentMain.exe",
-		L"C:\\Program Files (x86)\\Mythware\\极域课堂管理系统软件V6.0 2016 豪华版\\StudentMain.exe",
+		L"C:\\Program Files (x86)\\Mythware\\联想课堂管理系统软件V6.0 2016 豪华版\\StudentMain.exe",
 		L"C:\\Program Files (x86)\\Mythware\\e - Learning Class\\StudentMain.exe",
 		L"C:\\e-Learning Class\\StudentMain.exe",
-		L"c:\\极域课堂管理系统软件V6.0 2016 豪华版\\StudentMain.exe",
+		L"c:\\联想课堂管理系统软件V6.0 2016 豪华版\\StudentMain.exe",
 	};
 	for (int i = 0; i < 6; i++) {
 		if (Path::Exists(mabeInHere[i])) {
@@ -634,7 +657,7 @@ bool TrainerWorkerInternal::LocateStudentMain(DWORD *outFirstPid)
 	{
 		bool done = false;
 		for (PSYSTEM_PROCESSES p = current_system_process; !done; p = PSYSTEM_PROCESSES(PCHAR(p) + p->NextEntryOffset)) {
-			if (p->ImageName.Length && StrEqual(p->ImageName.Buffer, L"StudentMain.exe"))
+			if (p->ImageName.Length && StrEqual(p->ImageName.Buffer, L"Student.exe"))
 			{
 				if (CheckPidFilterd((DWORD)p->ProcessId)) continue;
 
@@ -644,16 +667,16 @@ bool TrainerWorkerInternal::LocateStudentMain(DWORD *outFirstPid)
 					if (MGetProcessFullPathEx(hProcess, buffer)) {
 						//检查exe相同目录下是否存在 LibTDMaster.dll 不存在则排除
 						PathRemoveFileSpec(buffer);
-						wcscat_s(buffer, L"\\LibTDMaster.dll");
+						wcscat_s(buffer, L"\\StudentLogic.dll");
 						if (!PathFileExists(buffer)) {
 							AddFilterdPid((DWORD)p->ProcessId);
-							currentLogger->Log(L"奇怪的 StudentMain.exe [%d]", (DWORD)p->ProcessId);
+							currentLogger->Log(L"奇怪的 Student.exe [%d]", (DWORD)p->ProcessId);
 							continue;
 						}
 
 						//Exe 确定位置
 						if (!_StudentMainFileLocated) {
-							currentLogger->Log(L"通过进程 StudentMain.exe [%d] 定位到位置： %s", (DWORD)p->ProcessId, _StudentMainPath);
+							currentLogger->Log(L"通过进程 Student.exe [%d] 定位到位置： %s", (DWORD)p->ProcessId, _StudentMainPath);
 							_StudentMainPath = buffer;
 							_StudentMainFileLocated = true;
 							_StudentMainFileLocatedByProcess = true;
@@ -679,7 +702,7 @@ bool TrainerWorkerInternal::LocateMasterHelper(DWORD *outFirstPid)
 	{
 		bool done = false;
 		for (PSYSTEM_PROCESSES p = current_system_process; !done; p = PSYSTEM_PROCESSES(PCHAR(p) + p->NextEntryOffset)) {
-			if (p->ImageName.Length && StrEqual(p->ImageName.Buffer, L"MasterHelper.exe"))
+			if (p->ImageName.Length && StrEqual(p->ImageName.Buffer, L"MultiRender.exe"))
 			{
 				if (outFirstPid)*outFirstPid = (DWORD)p->ProcessId;
 				return true;
@@ -739,7 +762,7 @@ void TrainerWorkerInternal::UpdateState()
 		TrainerWorkerCallback::TrainerStatus status;
 		if (_StudentMainPid > 4) {
 			if (_StudentMainControlled) {
-				_StatusTextMain = L"已控制极域电子教室";
+				_StatusTextMain = L"已控制联想电子教室";
 
 				if (!_Running) {
 					_StatusTextMain += L" 但控制器未启动";
@@ -747,7 +770,7 @@ void TrainerWorkerInternal::UpdateState()
 				}
 				else if (_StudentMainRunningLock)
 				{
-					_StatusTextMore = L"已为您解锁极域电子教室<br/>您可以放心继续您的工作";
+					_StatusTextMore = L"已为您解锁联想电子教室<br/>您可以放心继续您的工作";
 					status = TrainerWorkerCallback::TrainerStatus::TrainerStatusControlledAndUnLocked;
 				}
 				else {
@@ -756,36 +779,36 @@ void TrainerWorkerInternal::UpdateState()
 				}
 			}
 			else {
-				_StatusTextMain = L"无法控制极域电子教室";
+				_StatusTextMain = L"无法控制联想电子教室";
 				if (!_Running) {
 					_StatusTextMain = L"控制器未启动";
-					_StatusTextMore = L"您已手动停止控制器<br / >当前不会对极域做任何操作";
+					_StatusTextMore = L"您已手动停止控制器<br / >当前不会对联想做任何操作";
 					status = TrainerWorkerCallback::TrainerStatus::TrainerStatusStopped;
 				}
 				else if (_VirusInstalled) {
-					_StatusTextMore = L"毒已插入极域，但未正常运行<br / ><span style=\"color:#f41702\">您可能需要重新启动极域</span>";
+					_StatusTextMore = L"毒已插入联想，但未正常运行<br / ><span style=\"color:#f41702\">您可能需要重新启动联想</span>";
 					status = TrainerWorkerCallback::TrainerStatus::TrainerStatusUnknowProblem;
 				}
 				else {
-					_StatusTextMore = L"向极域电子教室插入病毒失败<br / >错误详情请查看 <a id=\"link_log\">日志</a>";
+					_StatusTextMore = L"向联想电子教室插入病毒失败<br / >错误详情请查看 <a id=\"link_log\">日志</a>";
 					status = TrainerWorkerCallback::TrainerStatus::TrainerStatusControllFailed;
 				}
 			}
 		}
 		else {
-			_StatusTextMain = L"极域电子教室未运行";
+			_StatusTextMain = L"联想电子教室未运行";
 			if (!_Running) {
-				_StatusTextMain = L"极域电子教室未运行 并且控制器未启动";
-				_StatusTextMore = L"您已手动停止控制器<br / >当前不会检测极域的运行";
+				_StatusTextMain = L"联想电子教室未运行 并且控制器未启动";
+				_StatusTextMore = L"您已手动停止控制器<br / >当前不会检测联想的运行";
 				status = TrainerWorkerCallback::TrainerStatus::TrainerStatusStopped;
 			}
 			else if (_StudentMainFileLocated) {
 				status = TrainerWorkerCallback::TrainerStatus::TrainerStatusNotRunning;
-				_StatusTextMore = L"已在此计算机上找到极域电子教室<br / >你可以点击 <b>下方按钮</b> 运行它";
+				_StatusTextMore = L"已在此计算机上找到联想电子教室<br / >你可以点击 <b>下方按钮</b> 运行它";
 			}
 			else {
 				status = TrainerWorkerCallback::TrainerStatus::TrainerStatusNotFound;
-				_StatusTextMore = L"未在此计算机上找到极域电子教室";
+				_StatusTextMore = L"未在此计算机上找到联想电子教室";
 			}
 		}
 
@@ -793,6 +816,22 @@ void TrainerWorkerInternal::UpdateState()
 	}
 }
 
+bool TrainerWorkerInternal::LocateBlackSlient(DWORD *outFirstPid)
+{
+	if (current_system_process)
+	{
+		bool done = false;
+		for (PSYSTEM_PROCESSES p = current_system_process; !done; p = PSYSTEM_PROCESSES(PCHAR(p) + p->NextEntryOffset)) {
+			if (p->ImageName.Length && StrEqual(p->ImageName.Buffer, L"BlackSlient.exe"))
+			{
+				if (outFirstPid)*outFirstPid = (DWORD)p->ProcessId;
+				return true;
+			}
+			done = p->NextEntryOffset == 0;
+		}
+	}
+	return false;
+}
 bool TrainerWorkerInternal::InstallVirus()
 {
 	return InjectDll(_StudentMainPid, currentApp->GetPartFullPath(PART_HOOKER));
@@ -804,40 +843,60 @@ bool TrainerWorkerInternal::InstallVirusForMaster()
 bool TrainerWorkerInternal::InjectDll(DWORD pid, LPCWSTR dllPath)
 {
 	HANDLE hRemoteProcess;
-	//打开进程
 	NTSTATUS ntStatus = MOpenProcessNt(pid, &hRemoteProcess);
 	if (!NT_SUCCESS(ntStatus)) {
-		currentLogger->LogError2(L"注入病毒失败！打开进程失败：0x%08X", ntStatus);
+		currentLogger->LogError2(L"InjectDll: open process failed 0x%08X", ntStatus);
 		return FALSE;
 	}
 
-	wchar_t *pszLibFileRemote;
-
-	//使用VirtualAllocEx函数在远程进程的内存地址空间分配DLL文件名空间
-	pszLibFileRemote = (wchar_t *)VirtualAllocEx(hRemoteProcess, NULL, sizeof(wchar_t) * (lstrlen(dllPath) + 1), MEM_COMMIT, PAGE_READWRITE);
-
-	//使用WriteProcessMemory函数将DLL的路径名写入到远程进程的内存空间
-	WriteProcessMemory(hRemoteProcess, pszLibFileRemote, (void *)dllPath, sizeof(wchar_t) * (lstrlen(dllPath) + 1), NULL);
-
-	//##############################################################################
-		//计算LoadLibraryA的入口地址
-	PTHREAD_START_ROUTINE pfnStartAddr = (PTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandle(TEXT("Kernel32")), "LoadLibraryW");
-	//(关于GetModuleHandle函数和GetProcAddress函数)
-
-	//启动远程线程LoadLibraryW，通过远程线程调用创建新的线程
-	HANDLE hRemoteThread;
-	if ((hRemoteThread = CreateRemoteThread(hRemoteProcess, NULL, 0, pfnStartAddr, pszLibFileRemote, 0, NULL)) == NULL)
-	{
-		currentLogger->LogError2(L"注入线程失败! 错误：CreateRemoteThread %d", GetLastError());
+	FARPROC pLoadLibraryW = GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "LoadLibraryW");
+	if (!pLoadLibraryW) {
+		currentLogger->LogError2(L"InjectDll: cannot resolve LoadLibraryW");
+		CloseHandle(hRemoteProcess);
 		return FALSE;
 	}
 
-	// 释放句柄
+	SIZE_T pathBytes = (wcslen(dllPath) + 1) * sizeof(WCHAR);
+	LPVOID pRemotePath = VirtualAllocEx(hRemoteProcess, NULL, pathBytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if (!pRemotePath) {
+		currentLogger->LogError2(L"InjectDll: VirtualAllocEx failed %d", GetLastError());
+		CloseHandle(hRemoteProcess);
+		return FALSE;
+	}
 
-	CloseHandle(hRemoteProcess);
+	SIZE_T written = 0;
+	if (!WriteProcessMemory(hRemoteProcess, pRemotePath, (LPVOID)dllPath, pathBytes, &written) || written != pathBytes) {
+		currentLogger->LogError2(L"InjectDll: WriteProcessMemory failed %d (%u/%u)", GetLastError(), (unsigned)written, (unsigned)pathBytes);
+		VirtualFreeEx(hRemoteProcess, pRemotePath, 0, MEM_RELEASE);
+		CloseHandle(hRemoteProcess);
+		return FALSE;
+	}
+
+	HANDLE hRemoteThread = CreateRemoteThread(hRemoteProcess, NULL, 0, (LPTHREAD_START_ROUTINE)pLoadLibraryW, pRemotePath, 0, NULL);
+	if (!hRemoteThread) {
+		currentLogger->LogError2(L"InjectDll: CreateRemoteThread failed %d", GetLastError());
+		VirtualFreeEx(hRemoteProcess, pRemotePath, 0, MEM_RELEASE);
+		CloseHandle(hRemoteProcess);
+		return FALSE;
+	}
+
+	DWORD waitResult = WaitForSingleObject(hRemoteThread, 1500);
+	DWORD exitCode = 0;
+	GetExitCodeThread(hRemoteThread, &exitCode);
 	CloseHandle(hRemoteThread);
+	VirtualFreeEx(hRemoteProcess, pRemotePath, 0, MEM_RELEASE);
+	CloseHandle(hRemoteProcess);
 
-	return true;
+	if (waitResult == WAIT_TIMEOUT) {
+		currentLogger->LogWarn(L"InjectDll: remote thread still busy, assume DLL loaded : %s", dllPath);
+		return TRUE;
+	}
+	if (exitCode == 0) {
+		currentLogger->LogError2(L"InjectDll: remote LoadLibraryW returned NULL, DLL not loaded : %s", dllPath);
+		return FALSE;
+	}
+	currentLogger->Log(L"InjectDll: DLL loaded (module 0x%08X) : %s", exitCode, dllPath);
+	return TRUE;
 }
 bool TrainerWorkerInternal::UnInjectDll(DWORD pid, LPCWSTR moduleName)
 {
@@ -889,12 +948,12 @@ bool TrainerWorkerInternal::UnInjectDll(DWORD pid, LPCWSTR moduleName)
 bool TrainerWorkerInternal::UnLoadAllVirus()
 {
 	if (_MasterHelperPid > 4) {
-		if (UnInjectDll(_MasterHelperPid, L"JiYuTrainerHooks.dll"))
+		if (UnInjectDll(_MasterHelperPid, L"LxtcTrainerHooks.dll"))
 			currentLogger->Log(L"已强制卸载 MasterHelper 病毒");
 		//KillProcess(_MasterHelperPid, false);
 	}
 	if (_StudentMainPid > 4)
-		if (UnInjectDll(_StudentMainPid, L"JiYuTrainerHooks.dll"))
+		if (UnInjectDll(_StudentMainPid, L"LxtcTrainerHooks.dll"))
 			currentLogger->Log(L"已强制卸载 StudentMain 病毒");
 
 	return false;
@@ -1006,12 +1065,23 @@ bool TrainerWorkerInternal::ChecIsJIYuWindow(HWND hWnd, LPDWORD outPid, LPDWORD 
 	DWORD pid = 0, tid = GetWindowThreadProcessId(hWnd, &pid);
 	if (outPid) *outPid = pid;
 	if (outTid) *outTid = tid;
-	return pid == _StudentMainPid;
+	return pid == _StudentMainPid || pid == _MasterHelperPid;
+}
+bool TrainerWorkerInternal::IsBlackSlientWindow(HWND hWnd) {
+	if (_BlackSlientPid <= 4) return false;
+	DWORD pid = 0;
+	GetWindowThreadProcessId(hWnd, &pid);
+	return pid == _BlackSlientPid;
+}
+bool TrainerWorkerInternal::IsMultiRenderClassWindow(HWND hWnd) {
+	WCHAR cls[128];
+	if (!GetClassNameW(hWnd, cls, 128)) return false;
+	return StringHlp::StrEqualW(cls, L"MultiRenderWindowClass");
 }
 bool TrainerWorkerInternal::CheckIsTargetWindow(LPWSTR text, HWND hWnd) {
 	bool b = false;
 	
-	if (StrEqual(text, L"BlackScreen Window")) {
+	if (StrEqual(text, L"BlackScreen Window") || IsBlackSlientWindow(hWnd)) {
 		b = true;
 		_LastResoveBlackScreenWindow = true;
 		if (!_FirstBlackScreenWindow) {
@@ -1021,7 +1091,7 @@ bool TrainerWorkerInternal::CheckIsTargetWindow(LPWSTR text, HWND hWnd) {
 		_CurrentBlackScreenWnd = hWnd;
 		if (_FakeBlackScreenFull) return false;
 	}
-	else if (CheckWindowTextIsGb(text)) {
+	else if (CheckWindowTextIsGb(text) || IsMultiRenderClassWindow(hWnd)) {
 		b = true;
 		_LastResoveBroadcastWindow = true;
 		_CurrentBroadcastWnd = hWnd;

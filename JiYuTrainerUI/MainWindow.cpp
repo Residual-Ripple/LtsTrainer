@@ -309,11 +309,11 @@ void MainWindow::OnRunCmd(LPCWSTR cmd)
 		wstring cmd = (cmds)[0];
 		if (cmd == L"killst") {
 			if (currentWorker->Kill())
-				currentLogger->Log(L"已成功结束极域进程");
+				currentLogger->Log(L"已成功结束联想进程");
 		}
 		else if (cmd == L"rerunst") {
 			if (currentWorker->Rerun())
-				currentLogger->Log(L"已成功运行极域进程");
+				currentLogger->Log(L"已成功运行联想进程");
 		}
 		else if (cmd == L"kill") {
 			if (len >= 2) {
@@ -368,7 +368,7 @@ void MainWindow::OnRunCmd(LPCWSTR cmd)
 		else if (cmd == L"sssr") currentApp->RunOperation(AppOperationKReboot);
 		else if (cmd == L"ckend") { 
 			currentWorker->RunOperation(TrainerWorkerOpVirusQuit); 
-			currentLogger->Log(L"已与极域分离");
+			currentLogger->Log(L"已与联想分离");
 		}
 		else if (cmd == L"unloaddrv") {
 			currentApp->RunOperation(AppOperationUnLoadDriver);
@@ -390,20 +390,20 @@ void MainWindow::OnRunCmd(LPCWSTR cmd)
 		}	
 		else if (cmd == L"jypasswd") { 
 			LPCWSTR passwd;
-			int res = MessageBox(_hWnd, L"您是否希望使用解密模式读取极域密码？\n选择 [是]  使用解密模式读取极域密码，适用于极域6.0版本\n选择 [否]  则直接读取极域注册表密码，适用于极域老版本", L"JiYuTrainer - 提示", MB_ICONASTERISK | MB_YESNOCANCEL);
+			int res = MessageBox(_hWnd, L"您是否希望使用解密模式读取联想密码？\n选择 [是]  使用解密模式读取联想密码，适用于联想6.0版本\n选择 [否]  则直接读取联想注册表密码，适用于联想老版本", L"JiYuTrainer - 提示", MB_ICONASTERISK | MB_YESNOCANCEL);
 			if (res == IDYES) passwd = (LPCWSTR)currentWorker->RunOperation(TrainerWorkerOp3);
 			else if (res == IDNO) passwd = (LPCWSTR)currentWorker->RunOperation(TrainerWorkerOp2);
 			else return;
 			if (passwd) {
 				if (StrEmepty(passwd)) {
-					MessageBox(_hWnd, L"已成功读取极域密码，密码为空。", L"JiYuTrainer - 提示", MB_ICONINFORMATION);
+					MessageBox(_hWnd, L"已成功读取联想密码，密码为空。", L"JiYuTrainer - 提示", MB_ICONINFORMATION);
 				}
 				else {
-					FAST_STR_BINDER(str, L"已成功读取极域密码，\n密码是：%s", 128, passwd);
+					FAST_STR_BINDER(str, L"已成功读取联想密码，\n密码是：%s", 128, passwd);
 					MessageBox(_hWnd, str, L"JiYuTrainer - 提示", MB_ICONINFORMATION);
 				}
 			}
-			else MessageBox(_hWnd, L"极域电子教室密码读取失败！或许你可以用 mythware_super_password 试试", L"JiYuTrainer - 提示", MB_ICONEXCLAMATION);
+			else MessageBox(_hWnd, L"联想电子教室密码读取失败！或许你可以用 mythware_super_password 试试", L"JiYuTrainer - 提示", MB_ICONEXCLAMATION);
 		}
 		else if (cmd == L"attack") {
 			if (currentAttackWindow == nullptr)
@@ -412,11 +412,11 @@ void MainWindow::OnRunCmd(LPCWSTR cmd)
 				currentAttackWindow->Show();
 		}
 		else if (cmd == L"unload_netfilter") {
-			if (MessageBox(_hWnd, L"您是否希望解除极域的网络控制？此操作会卸载极域的网络过滤驱动，卸载以后网络将不受其控制。\n" 
+			if (MessageBox(_hWnd, L"您是否希望解除联想的网络控制？此操作会卸载联想的网络过滤驱动，卸载以后网络将不受其控制。\n" 
 				"卸载过程中可能卡顿，请等待程序执行完成。\n此操作只需执行一次即可。\n提示：在卸载完成以后最好在“控制面板”>"
 				"“网络和共享中心”>“更改适配器选项”，选本地连接，右键禁用再启用，这样可以重启网络使设置生效。", L"JiYuTrainer - 提示", MB_ICONWARNING | MB_YESNO) == IDYES)
 				if (currentWorker->RunOperation(TrainerWorkerOp5))
-					MessageBox(_hWnd, L"卸载极域的网络过滤驱动成功", L"JiYuTrainer - 提示", MB_ICONINFORMATION);
+					MessageBox(_hWnd, L"卸载联想的网络过滤驱动成功", L"JiYuTrainer - 提示", MB_ICONINFORMATION);
 		}
 		else if (cmd == L"uj") {
 			if (currentWorker) {
@@ -498,11 +498,11 @@ void MainWindow::OnFirstShow()
 	//显示重启提示
 	if (currentApp->IsCommandExists(L"r1")) {
 		currentLogger->LogInfo(L"Reboot mode 1");
-		ShowFastMessage(L"刚才进程意外退出", L"极域可能试图结束本进程，或是其他软件（比如任务管理器）结束了本进程，为了安全，我们已经重启了软件进程，您如果要退出本软件的话，请手动点击托盘图标>退出软件。");
+		ShowFastMessage(L"刚才进程意外退出", L"联想可能试图结束本进程，或是其他软件（比如任务管理器）结束了本进程，为了安全，我们已经重启了软件进程，您如果要退出本软件的话，请手动点击托盘图标>退出软件。");
 	}
 	else if (currentApp->IsCommandExists(L"r2")) {
 		currentLogger->LogInfo(L"Reboot mode 2");
-		ShowFastTip(L"刚才意外与病毒失去联系，现已杀死极域并重启软件主进程");
+		ShowFastTip(L"刚才意外与病毒失去联系，现已杀死联想并重启软件主进程");
 	}
 	else if (currentApp->IsCommandExists(L"r3")) {
 		currentLogger->LogInfo(L"Reboot mode 3");
@@ -549,11 +549,11 @@ bool MainWindow::on_event(HELEMENT he, HELEMENT target, BEHAVIOR_EVENTS type, UI
 		}
 		else if (ele.get_attribute("id") == L"btn_kill") {
 			if (currentWorker->Kill())
-				ShowFastTip(L"<h4>已成功结束极域电子教室</h4>");
+				ShowFastTip(L"<h4>已成功结束联想电子教室</h4>");
 		}
 		else if (ele.get_attribute("id") == L"btn_restart") {
 			if (currentWorker->Rerun())
-				ShowFastTip(L"<h4>已启动极域电子教室</h4>");
+				ShowFastTip(L"<h4>已启动联想电子教室</h4>");
 		}
 		else if (ele.get_attribute("id") == L"link_save_setting") {
 			SaveSettings();
@@ -595,7 +595,7 @@ bool MainWindow::on_event(HELEMENT he, HELEMENT target, BEHAVIOR_EVENTS type, UI
 			Close();
 		}
 		else if (ele.get_attribute("id") == L"link_uninstall") {
-			if (MessageBox(_hWnd, L"你是否真的要卸载本软件？\n卸载会删除本软件相关安装文件，但不会删除源安装包；并且卸载过程中会暂时结束极域主进程，稍后您需要手动启动极域。", L"JiYuTrainer - 警告", MB_YESNO | MB_ICONEXCLAMATION) == IDYES)
+			if (MessageBox(_hWnd, L"你是否真的要卸载本软件？\n卸载会删除本软件相关安装文件，但不会删除源安装包；并且卸载过程中会暂时结束联想主进程，稍后您需要手动启动联想。", L"JiYuTrainer - 警告", MB_YESNO | MB_ICONEXCLAMATION) == IDYES)
 				currentApp->UnInstall();
 		}
 		else if (ele.get_attribute("id") == L"link_read_jiyu_password" || ele.get_attribute("id") == L"link_read_jiyu_password2") { OnRunCmd(L"jypasswd"); CloseCmdsTip(); }
@@ -612,9 +612,9 @@ bool MainWindow::on_event(HELEMENT he, HELEMENT target, BEHAVIOR_EVENTS type, UI
 		else if (ele.get_attribute("id") == L"link_more_settings") ShowMoreSettings(_hWnd);
 		else if (ele.get_attribute("id") == L"link_locate_jiyu_position") {
 			TCHAR strFilename[MAX_PATH] = { 0 };
-			if (SysHlp::ChooseFileSingal(_hWnd, NULL, L"请选择极域主进程 StudentMain.exe 的位置", L"StudentMain.exe\0*.exe\0所有文件(*.*)\0*.*\0\0\0",
+			if (SysHlp::ChooseFileSingal(_hWnd, NULL, L"请选择联想主进程 StudentMain.exe 的位置", L"StudentMain.exe\0*.exe\0所有文件(*.*)\0*.*\0\0\0",
 				strFilename, NULL, strFilename, MAX_PATH)) {		
-				if (currentWorker->AppointStudentMainLocation(strFilename)) ShowFastTip(L"已更改极域主进程位置");
+				if (currentWorker->AppointStudentMainLocation(strFilename)) ShowFastTip(L"已更改联想主进程位置");
 				else MessageBox(hWndMain, L"您选择的主进程位置无效。", L"JiYuTrainer - 提示", MB_ICONEXCLAMATION);
 			}
 		}
@@ -656,12 +656,12 @@ void MainWindow::OnUpdateStudentMainInfo(bool running, LPCWSTR fullPath, DWORD p
 
 	if (StringHlp::StrEmeptyW(fullPath)) {
 		link_read_jiyu_password2.set_attribute("style", L"display: none;");
-		status_jiyu_path.set_text(L"未找到极域电子教室");
+		status_jiyu_path.set_text(L"未找到联想电子教室");
 	}
 	else {
 		link_read_jiyu_password2.set_attribute("style", L"");
 		std::wstring s1(fullPath);
-		s1 += L"<br/><small>点击运行极域电子教室</small>";
+		s1 += L"<br/><small>点击运行联想电子教室</small>";
 		LPCSTR textMore2 = StringHlp::UnicodeToUtf8(s1.c_str());
 		status_jiyu_path.set_html((UCHAR*)textMore2, strlen(textMore2));
 		FreeStringPtr(textMore2);
@@ -696,21 +696,21 @@ void MainWindow::OnUpdateState(TrainerStatus status, LPCWSTR textMain, LPCWSTR t
 	
 	if (protectStat == 0) {
 		btn_protect_stat.set_attribute("class", L"btn-footers protect-stat no-danger");
-		status_protect.set_text(L"您未受到极域电子教室的控制");
+		status_protect.set_text(L"您未受到联想电子教室的控制");
 	}
 	else if (protectStat == 1) {
 		btn_protect_stat.set_attribute("class", L"btn-footers protect-stat not-protected");
-		status_protect.set_text(L"出现错误，无法保护您免受极域电子教室的控制");
+		status_protect.set_text(L"出现错误，无法保护您免受联想电子教室的控制");
 	}
 	else if (protectStat == 2) {
 		btn_protect_stat.set_attribute("class", L"btn-footers protect-stat protected");
-		status_protect.set_text(L"已保护您免受极域电子教室的控制");
+		status_protect.set_text(L"已保护您免受联想电子教室的控制");
 	}
 }
 void MainWindow::OnResolveBlackScreenWindow()
 {
 	if (!domComplete) return;
-	ShowFastTip(L"<h5>已关闭极域的黑屏窗口，您可以继续您的工作了！</h5>");
+	ShowFastTip(L"<h5>已关闭联想的黑屏窗口，您可以继续您的工作了！</h5>");
 }
 void MainWindow::OnBeforeSendStartConf()
 {

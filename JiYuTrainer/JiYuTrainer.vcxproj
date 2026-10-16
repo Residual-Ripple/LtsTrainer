@@ -23,6 +23,7 @@
     <ProjectGuid>{3F13035C-4164-4E05-9B5E-BC4546D7E4F6}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>JiYuTrainer</RootNamespace>
+    <TargetName>lxtctrainer</TargetName>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -237,10 +238,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Debug\JiYuTrainerDriver.sys" />
-    <None Include="..\Debug\JiYuTrainerHooks.dll" />
+    <None Include="..\Debug\LxtcTrainerHooks.dll" />
     <None Include="..\Debug\sciter.dll" />
     <None Include="..\Release\JiYuTrainerDriver.sys" />
-    <None Include="..\Release\JiYuTrainerHooks.dll" />
+    <None Include="..\Release\LxtcTrainerHooks.dll" />
     <None Include="..\Release\sciter.dll" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

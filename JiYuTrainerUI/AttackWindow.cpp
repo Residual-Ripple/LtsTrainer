@@ -12,7 +12,7 @@ extern int screenWidth, screenHeight;
 
 AttackWindow::AttackWindow(HWND parentHWnd) : 
 	CommonWindow(parentHWnd, 570, 520, 
-		L"JiYuTrainerAttackWindow", L"极域电子教室数据包(udp)重放攻击 - by ht0Ruial",
+		L"JiYuTrainerAttackWindow", L"联想电子教室数据包(udp)重放攻击 - by ht0Ruial",
 		IDR_HTML_ATTACK)
 {
 	init();
@@ -76,7 +76,7 @@ LRESULT AttackWindow::onWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
 		return 0;
 	}
 	case WM_MY_GET_SM_TICP_PORT_FINISH: {
-		if (wParam == NOT_FOUND_JY_PORT) MessageBox(hWnd, L"未找到极域PID，请确定极域已经运行。", L"提示", MB_OK);
+		if (wParam == NOT_FOUND_JY_PORT) MessageBox(hWnd, L"未找到联想PID，请确定联想已经运行。", L"提示", MB_OK);
 		else if(wParam == FAILED_FOUND_JY_PORT) MessageBox(hWnd, L"获取TCP表失败", L"提示", MB_OK);
 		else input_target_port.set_value(sciter::value((int)wParam));
 		*handled = TRUE;

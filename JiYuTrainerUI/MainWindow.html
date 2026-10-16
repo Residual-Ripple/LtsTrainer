@@ -865,12 +865,12 @@
         </div>
         <div class="window-tooltips-bottom">
             <div class="tooltip tooltip-vesion" style="bottom: 90px; left: 75px; width: 150px">当前版本 ：V1.7.6<br /><small>点击查看帮助</small></div>
-            <div class="tooltip tooltip-jiyu-pid" style="bottom: 86px; left: 30px; width: 300px;padding-top:8px;padding-bottom:8px">StudentMain.exe PID : <span id="status_jiyu_pid">未知</span><br /><small>点击杀死极域电子教室</small></div>
-            <div class="tooltip tooltip-jiyu-restart" style="bottom: 86px; left: 30px; width: 300px;padding-top:8px;padding-bottom:8px"><h4 class="m-0">极域位置</h4><span id="status_jiyu_path" style="color: #cecece">未找到极域电子教室</span></div>
+            <div class="tooltip tooltip-jiyu-pid" style="bottom: 86px; left: 30px; width: 300px;padding-top:8px;padding-bottom:8px">StudentMain.exe PID : <span id="status_jiyu_pid">未知</span><br /><small>点击杀死联想电子教室</small></div>
+            <div class="tooltip tooltip-jiyu-restart" style="bottom: 86px; left: 30px; width: 300px;padding-top:8px;padding-bottom:8px"><h4 class="m-0">联想位置</h4><span id="status_jiyu_path" style="color: #cecece">未找到联想电子教室</span></div>
             <div class="tooltip tooltip-topmost" id="tooltip_top" style="bottom: 83px; left: 83px; width: 70px">本窗口置顶</div>
             <div class="tooltip tooltip-sets" style="bottom: 83px; left: 203px; width: 80px">控制台和设置</div>
             <div class="tooltip tooltip-power" style="bottom: 83px; left: 281px; width: 55px">电源控制</div>
-            <div class="tooltip tooltip-protect-stat" style="bottom: 83px; left: 30px; width: 300px;" id="status_protect">您未受到极域电子教室的控制</div>
+            <div class="tooltip tooltip-protect-stat" style="bottom: 83px; left: 30px; width: 300px;" id="status_protect">您未受到联想电子教室的控制</div>
         </div>
         <!--底栏-->
         <div class="window-footer-area">
@@ -902,34 +902,34 @@
                 <h4 class="mb-0">程序配置</h4>
                 <div class="from-group">
 
-                    <div style="width: 180px;" class="form-check" title=" 是否监控极域运行进程，通常教师可以通过极域远程执行应用程序，如果你勾选此项则会监控极域运行进程，你可以选择允许或阻止教师在此电脑上运行程序">
+                    <div style="width: 180px;" class="form-check" title=" 是否监控联想运行进程，通常教师可以通过联想远程执行应用程序，如果你勾选此项则会监控联想运行进程，你可以选择允许或阻止教师在此电脑上运行程序">
                         <input type="checkbox" id="check_allow_op" checked="checked" />
-                        <label for="check_allow_op">监控极域运行进程</label>
+                        <label for="check_allow_op">监控联想运行进程</label>
                     </div>
-                    <div class="form-check" style="width: 150px;" title="勾选此选项后极域运行程序或CMD将不会提醒您而是直接拒绝（用极域打开文件也不能）">
+                    <div class="form-check" style="width: 150px;" title="勾选此选项后联想运行程序或CMD将不会提醒您而是直接拒绝（用联想打开文件也不能）">
                         <input type="checkbox" id="check_band_op">
-                        <label for="check_band_op">禁止极域运行进程</label>
+                        <label for="check_band_op">禁止联想运行进程</label>
                     </div>
 
                     <div class="form-check" style="width: 180px;" title="如果你需要将屏幕广播窗口置顶，请勾选此选项，然后在屏幕广播中选择置顶。本软件默认不允许屏幕广播窗口置顶">
                         <input type="checkbox" id="check_allow_top" />
                         <label for="check_allow_top">允许屏幕广播窗口置顶</label>
                     </div>
-                    <div style="width: 140px;" class="form-check" title="是否允许教师通过极域结束您电脑上的进程，默认不允许。">
+                    <div style="width: 140px;" class="form-check" title="是否允许教师通过联想结束您电脑上的进程，默认不允许。">
                         <input type="checkbox" id="check_probit_terminate_process" checked="checked" />
-                        <label for="check_probit_terminate_process">禁止极域结束进程</label>
+                        <label for="check_probit_terminate_process">禁止联想结束进程</label>
                     </div>
 
-                    <div class="form-check" style="width: 180px;" title="取消勾选此选项后教师将无法通过极域查看你的电脑屏幕。默认允许此选项">
+                    <div class="form-check" style="width: 180px;" title="取消勾选此选项后教师将无法通过联想查看你的电脑屏幕。默认允许此选项">
                         <input type="checkbox" id="check_allow_monitor" />
                         <label for="check_allow_monitor">允许教师监视你的电脑</label>
                     </div>
-                    <div class="form-check" style="width: 140px;" title="是否允许教师通过极域关闭您电脑上的窗口，默认不允许。 ">
+                    <div class="form-check" style="width: 140px;" title="是否允许教师通过联想关闭您电脑上的窗口，默认不允许。 ">
                         <input type="checkbox" id="check_probit_close_window" />
-                        <label for="check_probit_close_window">禁止极域关闭窗口</label>
+                        <label for="check_probit_close_window">禁止联想关闭窗口</label>
                     </div>
 
-                    <div class="form-check" style="width: 180px;" title="勾选此选项后教师可通过极域控制您的电脑。默认不允许此选项">
+                    <div class="form-check" style="width: 180px;" title="勾选此选项后教师可通过联想控制您的电脑。默认不允许此选项">
                         <input type="checkbox" id="check_allow_control" />
                         <label for="check_allow_control">允许教师控制你的电脑</label>
                     </div>
@@ -939,12 +939,12 @@
                     </div>
 
                     <div class="form-item" style="margin-top: 16px; ">
-                        <a href="#" id="link_unload_netfilter" class="cfg-link cfg-link-left text-info" style="margin-left: 30px" title="本功能可以卸载极域的网络过滤驱动，来防止教师通过极域限制您电脑的上网。本功能开机后卸载一次即可。">解除网络控制</a>
-                        <a href="#" id="link_read_jiyu_password2" class="cfg-link cfg-link-right text-info" title="本软件可尝试破解极域电子教室的卸载和解锁密码">破解极域的密码</a>
+                        <a href="#" id="link_unload_netfilter" class="cfg-link cfg-link-left text-info" style="margin-left: 30px" title="本功能可以卸载联想的网络过滤驱动，来防止教师通过联想限制您电脑的上网。本功能开机后卸载一次即可。">解除网络控制</a>
+                        <a href="#" id="link_read_jiyu_password2" class="cfg-link cfg-link-right text-info" title="本软件可尝试破解联想电子教室的卸载和解锁密码">破解联想的密码</a>
                     </div>
                     <div class="form-item">
                         <a href="#" id="link_more_settings" class="cfg-link cfg-link-left text-info" style="margin-left: 30px">软件高级配置</a>
-                        <a href="#" id="link_locate_jiyu_position" class="cfg-link cfg-link-right text-info" title="如果本软件并没有找到极域电子教室或者是寻找的路径不正确，您可以手动选择">选择极域主进程位置</a>
+                        <a href="#" id="link_locate_jiyu_position" class="cfg-link cfg-link-right text-info" title="如果本软件并没有找到联想电子教室或者是寻找的路径不正确，您可以手动选择">选择联想主进程位置</a>
                     </div>
 
                 </div>
@@ -999,21 +999,21 @@
             <h3>调试命令</h3>
             <p class="text-danger">以下命令仅供调试使用，部分可能存在危险</p>
             <div id="commands_help_area">
-                <span>killst 杀死极域电子教室</span><br />
-                <span>rerunst 重新运行极域电子教室</span><br />
+                <span>killst 杀死联想电子教室</span><br />
+                <span>rerunst 重新运行联想电子教室</span><br />
                 <span>kill [pid] 结束指定 pid 的进程</span><br />
                 <span>findps [processName] 查找指定名称的进程 pid</span><br />
-                <span>ss 查通知极域病毒端强制爆破</span><br />
+                <span>ss 查通知联想病毒端强制爆破</span><br />
                 <span>sss 立即关机</span><br />
                 <span>ssr 立即重启</span><br />
                 <span>sst [second] 定时在指定 second 秒后关机</span><br />
                 <span>ssss 内核关机</span><br />
                 <span>sssr 内核重启</span><br />
-                <span>ckend 分离本程序与极域</span><br />
+                <span>ckend 分离本程序与联想</span><br />
                 <span>whereisi 显示当前程序目录</span><br />
                 <span>version 显示当前程序版本</span><br />
                 <a href="#" id="link_hide">hide 隐藏主界面</a><br />
-                <a href="#" id="link_read_jiyu_password" class="text-info">jypasswd 破解极域密码</a><br />
+                <a href="#" id="link_read_jiyu_password" class="text-info">jypasswd 破解联想密码</a><br />
                 <span>exit 强制退出程序</span><br />
                 <span>testupdate</span><br />
                 <span>crash</span><br />
@@ -1022,7 +1022,7 @@
                 <span>uj</span><br />
                 <span>inspector</span><br />
                 <span>unloaddrv</span><br />
-                <span>fuljydrv 强制卸载极域的保护驱动 <span class="text-danger">(有蓝屏风险 慎用)</span></span><br />
+                <span>fuljydrv 强制卸载联想的保护驱动 <span class="text-danger">(有蓝屏风险 慎用)</span></span><br />
             </div>
 
         </div>
@@ -1058,7 +1058,7 @@
             </div>
             <p id="update_message_text">
             </p>
-            <p style="position: absolute;bottom: 60px; left: 15px; right: 15px; height :28px;text-align:center; font-size: 12px;color:rgb(108, 117, 125)">更新到最新版本，可以获得更稳定的使用体验！<br />更新过程中会暂时关闭极域</p>
+            <p style="position: absolute;bottom: 60px; left: 15px; right: 15px; height :28px;text-align:center; font-size: 12px;color:rgb(108, 117, 125)">更新到最新版本，可以获得更稳定的使用体验！<br />更新过程中会暂时关闭联想</p>
             <div class="text-right" style="position: absolute;bottom: 0; left: 15px; right: 15px; height :45px;text-align:center;">
                 <a href="#" class="btn-common btn-primary" id="update_message_update">立即更新!</a>
                 <a href="#" class="btn-common ml-2" id="update_message_close">下次再说</a>
@@ -1081,14 +1081,14 @@
         <!--退出提示框-->
         <div class="window-extend-area with-mask upper" id="exit_message" style="bottom: 135px; top :135px; left: -10px; right: -10px; padding: 10px 20px;">
             <a href="#" class="btn-close-extend-area" id="exit_message_close"><i>&nbsp;</i></a>
-            <h3>极域正在运行，您是否还要退出？</h3>
+            <h3>联想正在运行，您是否还要退出？</h3>
             <p>
-                当前正在控制极域，退出软件会非常不安全。
-                <br />你可以选择强制分离极域，但会导致极域脱离控制(不推荐)；也可以选择退出本软件，并杀死极域。
+                当前正在控制联想，退出软件会非常不安全。
+                <br />你可以选择强制分离联想，但会导致联想脱离控制(不推荐)；也可以选择退出本软件，并杀死联想。
             </p>
             <div class="text-right" style="position: absolute;bottom: 0; left: 0px; right: 15px; height :45px;">
-                <a href="#" class="btn-common btn-secondary" id="exit_message_kill_and_exit">杀死极域退出</a>
-                <a href="#" class="btn-common" id="exit_message_end_ctl_and_exit">分离极域退出(不推荐)</a>
+                <a href="#" class="btn-common btn-secondary" id="exit_message_kill_and_exit">杀死联想退出</a>
+                <a href="#" class="btn-common" id="exit_message_end_ctl_and_exit">分离联想退出(不推荐)</a>
                 <a href="#" class="btn-common btn-primary" id="exit_message_close2">取消</a>
             </div>
         </div>

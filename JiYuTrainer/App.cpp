@@ -26,7 +26,7 @@
 -install-full 开始完整安装命令\n\
 -config       打开 JiYuTrainer 高级配置\n\
 -hidden       静默运行模式\n\
--killst       杀死极域电子教室\n\
+-killst       杀死联想电子教室\n\
 \n\
 调试命令：\n\
 -bugreport -bugfile [bugFilePath]\n\
@@ -67,7 +67,7 @@ int JTAppInternal::CheckAndInstall()
 		//创建临时目录
 		WCHAR szTempPath[MAX_PATH];
 		GetTempPath(MAX_PATH, szTempPath);
-		wcscat_s(szTempPath, L"\\JiYuTrainer");
+		wcscat_s(szTempPath, L"\\lxtctrainer");
 		if (!Path::Exists(szTempPath) && !CreateDirectory(szTempPath, NULL)) {
 			appLogger->LogError2(L"创建临时目录失败：%s (%d)", PRINT_LAST_ERROR_STR);
 			return -1;
@@ -75,9 +75,9 @@ int JTAppInternal::CheckAndInstall()
 		WCHAR szTempMainPath[MAX_PATH];
 		WCHAR szTempMainStartBatPath[MAX_PATH];
 		wcscpy_s(szTempMainPath, szTempPath);
-		wcscat_s(szTempMainPath, L"\\JiYuTrainer.exe");
+		wcscat_s(szTempMainPath, L"\\lxtctrainer.exe");
 		wcscpy_s(szTempMainStartBatPath, szTempPath);
-		wcscat_s(szTempMainStartBatPath, L"\\JiYuTrainerStart.bat");
+		wcscat_s(szTempMainStartBatPath, L"\\lxtctrainerStart.bat");
 		//复制本体
 		if (!CopyFile(fullPath.c_str(), szTempMainPath, FALSE)) {
 			appLogger->LogError2(L"创建主程序失败：%s (%d)", PRINT_LAST_ERROR_STR);
@@ -129,7 +129,7 @@ int JTAppInternal::CheckAndInstall()
 	//更新器
 	if (appIsInstaller) {
 		//须更新主exe
-		std::wstring mainExePath = fullDir + L"\\JiYuTrainer.exe";
+		std::wstring mainExePath = fullDir + L"\\lxtctrainer.exe";
 		if (Path::Exists(mainExePath) && !DeleteFile(mainExePath.c_str())) {
 			appLogger->LogError2(L"无法更新原主exe ：%s (%d)", PRINT_LAST_ERROR_STR);
 			return -1;
@@ -464,8 +464,8 @@ int JTAppInternal::RunInternal()
 	}
 	if (appKillStMode) {
 		TrainerWorkerInternal t;
-		if (t.KillStAuto()) printf_s("已成功结束极域电子教室\n");
-		else printf_s("无法结束极域电子教室，详情请查看日志\n");
+		if (t.KillStAuto()) printf_s("已成功结束联想电子教室\n");
+		else printf_s("无法结束联想电子教室，详情请查看日志\n");
 		return 0;
 	}
 	if (!appArgInstallMode) {
@@ -641,7 +641,7 @@ bool JTAppInternal::CheckAppCorrectness()
 void JTAppInternal::MergePathString()
 {
 	fullDriverPath = fullDir + L"\\JiYuTrainerDriver.sys";
-	fullHookerPath = fullDir + L"\\JiYuTrainerHooks.dll";
+	fullHookerPath = fullDir + L"\\LxtcTrainerHooks.dll";
 	fullSciterPath = fullDir + L"\\sciter.dll";
 }
 void JTAppInternal::InitPath()
@@ -756,7 +756,7 @@ INT_PTR CALLBACK JTAppInternal::AVTipWndProc(HWND hDlg, UINT message, WPARAM wPa
 
 		SendMessage(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_MAIN)));
 		SendMessage(hDlg, WM_SETICON, ICON_BIG, (LPARAM)LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_MAIN)));
-		SetDlgItemText(hDlg, IDC_MESSAGE, FormatString(L"我们检测到您的计算机上安装了 %s 杀毒软件，因为 JiYuTrainer 会对极域进行操作，可能会被杀毒软件误识别为病毒。\n因此我们建议您 关闭杀毒软件 或 添加本软件至白名单。", ((JTAppInternal*)lParam)->existsAntiVirus.c_str()).c_str());
+		SetDlgItemText(hDlg, IDC_MESSAGE, FormatString(L"我们检测到您的计算机上安装了 %s 杀毒软件，因为 JiYuTrainer 会对联想进行操作，可能会被杀毒软件误识别为病毒。\n因此我们建议您 关闭杀毒软件 或 添加本软件至白名单。", ((JTAppInternal*)lParam)->existsAntiVirus.c_str()).c_str());
 		lResult = TRUE;
 		break;
 	}

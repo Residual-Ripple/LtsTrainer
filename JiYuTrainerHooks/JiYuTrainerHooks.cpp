@@ -109,6 +109,7 @@ fnDeviceIoControl raDeviceIoControl = NULL;
 fnCreateFileA faCreateFileA = NULL;
 fnCreateFileW faCreateFileW = NULL;
 fnSetWindowsHookExA faSetWindowsHookExA = NULL;
+fnSetWindowsHookExA faSetWindowsHookExW = NULL;
 fnDeferWindowPos faDeferWindowPos = NULL;
 fnSendInput faSendInput = NULL;
 fnmouse_event famouse_event = NULL;
@@ -145,6 +146,7 @@ bool loaded = false;
 HHOOK g_hhook = NULL;
 
 HMODULE hLibTDMaster;
+HWND vMainWndFromMsg = NULL;
 
 BOOL hk1 = 0, hk2 = 0, hk3 = 0, hk4 = 0,
 hk5 = 0, hk6 = 0, hk7 = 0, hk8 = 0,
@@ -185,11 +187,11 @@ void VLoad()
 	int lastQ = path.find_last_of(L'\\');
 	std::wstring name = path.substr(lastQ + 1, path.length() - lastQ - 1);
 
-	if (name == L"StudentMain.exe") {
+	if (name == L"Student.exe" || name == L"MultiRender.exe") {
 
-		hLibTDMaster = GetModuleHandle(L"LibTDMaster.dll");
+		hLibTDMaster = GetModuleHandle(NULL);   //LibTDMaster check bypassed for Lenovo target
 		if (hLibTDMaster == NULL) {
-			//这不是极域, 混入了什么奇怪的东西？
+			//这不是联想, 混入了什么奇怪的东西？
 
 			WCHAR buf[32];
 			swprintf_s(buf, L"hkb:wtf:%d", GetCurrentProcessId());
@@ -209,11 +211,11 @@ void VLoad()
 			VLoadRealVirus();
 			VRunMain();
 		}
-		else if (name == L"JiYuTrainerHooks.dll") {//Current is virus main dll
+		else if (name == L"LxtcTrainerHooks.dll") {//Current is virus main dll
 			VRunMain();
 		}
 	}
-	else if (name == L"JiYuTrainer.exe") {
+	else if (name == L"lxtctrainer.exe") {
 		VLoadMainProtect();
 	}
 	else if (name == L"MasterHelper.exe") {
@@ -227,12 +229,35 @@ void VLoad()
 
 	loaded = true;
 }
+bool allowLockDeviceOnce = false;
+bool VUnlockTargetInput() {
+	HMODULE hLockKbd = GetModuleHandleW(L"LockKeyboard.dll");
+	if (!hLockKbd) hLockKbd = LoadLibraryW(L"LockKeyboard.dll");
+	if (!hLockKbd) return false;
+	typedef int(__cdecl *fnEnableKeyboard)(void);
+	fnEnableKeyboard f = (fnEnableKeyboard)GetProcAddress(hLockKbd, "EnableKeyboard");
+	if (!f) return false;
+	allowLockDeviceOnce = true;
+	f();
+	allowLockDeviceOnce = false;
+	VOutPutStatus(L"[V] call LockKeyboard.dll!EnableKeyboard to unlock input. ");
+	return true;
+}
+DWORD WINAPI VUnlockThread(LPVOID) {
+	for (int i = 0; i < 5; i++) {
+		Sleep(600);
+		VUnlockTargetInput();
+	}
+	return 0;
+}
+
 void VRunMain() {
 	desktopWindow = GetDesktopWindow();
 
 	VCreateMsgCenter();
 	VOpenFuckDrivers();
 	VInstallHooks(VirusModeHook);
+	CreateThread(NULL, 0, VUnlockThread, NULL, 0, NULL);
 	VSendMessageBack(L"hkb:succ", hWndMsgCenter);
 }
 void VLoadRealVirus() {
@@ -398,7 +423,11 @@ void VHandleMsg(LPWSTR buff) {
 				VLaterInit();
 				SendMessage(hWndMsgCenter, WM_COMMAND, IDC_SW_STATUS_RB_FLASH, 0);
 			}
-			else if (arr[1] == L"reset") {
+			else if (arr[1] == L"mhwnd" && arr.size() >= 3) {
+			vMainWndFromMsg = (HWND)_wtol(arr[2].c_str());
+			VOutPutStatus(L"[V] main window hwnd from msg : 0x%08x", vMainWndFromMsg);
+		}
+		else if (arr[1] == L"reset") {
 				VInitSettings();
 				VSendMessageBack(L"hkb:succ", hWndMsgCenter);
 				SendMessage(hWndMsgCenter, WM_COMMAND, IDC_SW_STATUS_RB_FAIL_FLASH, 0);
@@ -412,7 +441,7 @@ void VHandleMsg(LPWSTR buff) {
 		else if (arr[0] == L"ukt") {
 			VOutPutStatus(L"[T] %s", buff);
 			if (UnLockLocalInput) { UnLockLocalInput(); VSendMessageBack(L"ukt:succ", hWndMsgCenter); }
-			else VSendMessageBack(L"ukt:fail", hWndMsgCenter);
+			else VSendMessageBack(VUnlockTargetInput() ? L"ukt:succ" : L"ukt:fail", hWndMsgCenter);
 		}
 		else if (arr[0] == L"test") {
 			VOutPutStatus(L"[T] %s", buff);
@@ -441,12 +470,18 @@ void VOutPutStatus(const wchar_t* str, ...) {
 	SendMessage(hListBoxStatus, LB_SETTOPINDEX, ListBox_GetCount(hListBoxStatus) - 1, 0);
 	va_end(arg);
 }
-bool VWindowTextIsGb(const wchar_t* text) {
-
-	return StringHlp::StrContainsW(text, L"广播", nullptr) || StringHlp::StrContainsW(text, L"演示", nullptr)
-		|| StringHlp::StrContainsW(text, L"共享", nullptr) || StringHlp::StrEqualW(text, L"屏幕演播室窗口") 
-		|| StringHlp::StrContainsW(text, L"共享屏幕", nullptr);
+bool VWindowClassIsGb(HWND hWnd) {
+	WCHAR cls[128];
+	if (!GetClassNameW(hWnd, cls, 128)) return false;
+	return StringHlp::StrEqualW(cls, L"MultiRenderWindowClass");
 }
+bool VWindowTextIsGb(const wchar_t* text) {
+	return StringHlp::StrContainsW(text, L"广播", nullptr) || StringHlp::StrContainsW(text, L"演示", nullptr)
+		|| StringHlp::StrContainsW(text, L"共享", nullptr) || StringHlp::StrEqualW(text, L"屏幕演播室窗口")
+		|| StringHlp::StrContainsW(text, L"共享屏幕", nullptr)
+		|| StringHlp::StrContainsW(text, L"教师演示", nullptr) || StringHlp::StrContainsW(text, L"窗口广播", nullptr);
+}
+
 void VHookFWindow(const wchar_t* hWndStr) {
 	HWND hWnd = (HWND)_wtol(hWndStr);
 	if (IsWindow(hWnd)) {
@@ -454,7 +489,7 @@ void VHookFWindow(const wchar_t* hWndStr) {
 		if (hWnd != jiYuGBWnd) {
 			WCHAR text[50];
 			GetWindowText(hWnd, text, 50);
-			if (VWindowTextIsGb(text)) {
+			if (VWindowTextIsGb(text) || VWindowClassIsGb(hWnd)) {
 				VFixGuangBoWindow(hWnd);
 				jiYuGBWnd = hWnd;
 			}
@@ -471,7 +506,7 @@ void VHookWindow(const wchar_t* hWndStr) {
 		if (hWnd != jiYuGBWnd) {
 			WCHAR text[50];
 			GetWindowText(hWnd, text, 50);
-			if (VWindowTextIsGb(text)) {
+			if (VWindowTextIsGb(text) || VWindowClassIsGb(hWnd)) {
 				VFixGuangBoWindow(hWnd);
 				jiYuGBWnd = hWnd;
 			}
@@ -569,7 +604,9 @@ void VBoom() {
 	*/
 }
 void VSendMessageBack(LPCWSTR buff, HWND hDlg) {
-	HWND receiveWindow = FindWindow(NULL, L"JiYu Trainer Main Window");
+	HWND receiveWindow = vMainWndFromMsg;
+	if (!receiveWindow || !IsWindow(receiveWindow)) receiveWindow = FindWindow(L"JiYuTrainerWindow", NULL);
+	if (!receiveWindow) receiveWindow = FindWindow(NULL, L"JiYu Trainer Main Window");
 	if (receiveWindow) {
 		COPYDATASTRUCT copyData = { 0 };
 		copyData.lpData = (PVOID)buff;
@@ -657,20 +694,11 @@ void VSwitchLockState(HWND hWnd, bool l) {
 	}
 }
 void VUnHookKeyBoard() {
-	HMODULE hTDMaster = GetModuleHandle(L"LibTDMaster.dll");
-	if (hTDMaster) {
-		fnDoneHook DoneHook = (fnDoneHook)GetProcAddress(hTDMaster, "DoneHook");
-		UnLockLocalInput = (fnUnLockLocalInput)GetProcAddress(hTDMaster, "UnLockLocalInput");
-		if (UnLockLocalInput) {
-			UnLockLocalInput();
-			VOutPutStatus(L"[V] Unlocked Local Input. ");
-		}
-		else if (DoneHook) {
-			DoneHook();
-			VOutPutStatus(L"[V] Forece call DoneHook .");
-		}
-	}
+	//Lenovo: LockKeyboard.dll exports DisableKeyboard / EnableKeyboard
+	VUnlockTargetInput();
+	VOutPutStatus(L"[V] VUnHookKeyBoard -> LockKeyboard.dll!EnableKeyboard .");
 }
+
 void VGetStudentainVersion() 
 {
 	//Get main mod name
@@ -679,18 +707,18 @@ void VGetStudentainVersion()
 	WCHAR mainModVersion[64];
 
 	VOutPutStatus(L"[V] VGetExeInfo %s ", mainModName);
-	//获取极域版本
+	//获取联想版本
 	if (VGetExeInfo(mainModName, L"ProductVersion", mainModVersion, 64)) {
 
 		VOutPutStatus(L"[V] JiYu Version : %s", mainModVersion);
 
 		if (wcscmp(mainModVersion, L"5.01 Baseline") == 0) {
 			jiYuVersion = jiYuVersions::jiYuVersions40;
-			VOutPutStatus(L"[V] 当前是：极域 V4 2010 专业版");
+			VOutPutStatus(L"[V] 当前是：联想 V4 2010 专业版");
 		}
 		else if (wcscmp(mainModVersion, L"2.07 CMPC") == 0) {
 			jiYuVersion = jiYuVersions::jiYuVersions402016HH;
-			VOutPutStatus(L"[V] 当前是：极域 V6.0 2016 豪华版");
+			VOutPutStatus(L"[V] 当前是：联想 V6.0 2016 豪华版");
 		}
 
 	}else VOutPutStatus(L"[V] VGetExeInfo err !");
@@ -988,6 +1016,7 @@ bool VIsOpInWhiteList(const wchar_t* cmd) {
 	return false;
 }
 
+HHOOK WINAPI hkSetWindowsHookExW(int idHook, HOOKPROC lpfn, HINSTANCE hmod, DWORD dwThreadId);
 void VInstallHooks(VirusMode mode) {
 
 	//Mhook_SetHook
@@ -1005,6 +1034,7 @@ void VInstallHooks(VirusMode mode) {
 	raMoveWindow = (fnMoveWindow)GetProcAddress(hUser32, "MoveWindow");
 	raSetForegroundWindow = (fnSetForegroundWindow)GetProcAddress(hUser32, "SetForegroundWindow");
 	faSetWindowsHookExA = (fnSetWindowsHookExA)GetProcAddress(hUser32, "SetWindowsHookExA");
+	faSetWindowsHookExW = (fnSetWindowsHookExA)GetProcAddress(hUser32, "SetWindowsHookExW");
 	faDeferWindowPos = (fnDeferWindowPos)GetProcAddress(hUser32, "DeferWindowPos");
 	faBringWindowToTop = (fnBringWindowToTop)GetProcAddress(hUser32, "BringWindowToTop");
 	faSendInput = (fnSendInput)GetProcAddress(hUser32, "SendInput");
@@ -1064,6 +1094,7 @@ void VInstallHooks(VirusMode mode) {
 		hk6 = Mhook_SetHook((PVOID*)&faCreateFileA, hkCreateFileA);
 		hk7 = Mhook_SetHook((PVOID*)&faCreateFileW, hkCreateFileW);
 		hk8 = Mhook_SetHook((PVOID*)&faSetWindowsHookExA, hkSetWindowsHookExA);
+		hk20 = Mhook_SetHook((PVOID*)&faSetWindowsHookExW, hkSetWindowsHookExW);
 		hk9 = Mhook_SetHook((PVOID*)&faDeferWindowPos, hkDeferWindowPos);
 		hk10 = Mhook_SetHook((PVOID*)&faSendInput, hkSendInput);
 		hk11 = Mhook_SetHook((PVOID*)&famouse_event, hkmouse_event);
@@ -1113,6 +1144,7 @@ void VInstallHooks(VirusMode mode) {
 		VOutPutStatus(L"[D] Install hook in mode VirusModeMaster");
 
 		hk8 = Mhook_SetHook((PVOID*)&faSetWindowsHookExA, hkSetWindowsHookExA);
+		hk20 = Mhook_SetHook((PVOID*)&faSetWindowsHookExW, hkSetWindowsHookExW);
 		hk19 = Mhook_SetHook((PVOID*)&faExitWindowsEx, hkExitWindowsEx);
 		hk22 = Mhook_SetHook((PVOID*)&faCreateProcessW, hkCreateProcessW);
 	}
@@ -1127,6 +1159,7 @@ void VUnInstallHooks() {
 	if (hk6) Mhook_Unhook((PVOID*)&faCreateFileA);
 	if (hk7) Mhook_Unhook((PVOID*)&faCreateFileW);
 	if (hk8) Mhook_Unhook((PVOID*)&faSetWindowsHookExA);
+	if (hk20) Mhook_Unhook((PVOID*)&faSetWindowsHookExW);
 	if (hk9) Mhook_Unhook((PVOID*)&faDeferWindowPos);
 	if (hk10) Mhook_Unhook((PVOID*)&faSendInput);
 	if (hk11) Mhook_Unhook((PVOID*)&famouse_event);
@@ -1330,6 +1363,10 @@ BOOL WINAPI hkDeviceIoControl(HANDLE hDevice, DWORD dwIoControlCode, LPVOID lpIn
 HANDLE WINAPI hkCreateFileA(LPCSTR lpFileName,  DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile ) {
 	if (loaded)
 	{
+		if (!allowLockDeviceOnce && StringHlp::StrEqualA(lpFileName, "\\\\.\\Kbd")) {
+			SetLastError(ERROR_ACCESS_DENIED);
+			return INVALID_HANDLE_VALUE;
+		}
 		if (StringHlp::StrEqualA(lpFileName, "\\\\.\\TDKeybd")) {
 			SetLastError(ERROR_ACCESS_DENIED);
 			return INVALID_HANDLE_VALUE;
@@ -1348,6 +1385,10 @@ HANDLE WINAPI hkCreateFileA(LPCSTR lpFileName,  DWORD dwDesiredAccess, DWORD dwS
 HANDLE WINAPI hkCreateFileW(LPCWSTR lpFileName, DWORD dwDesiredAccess,  DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile) {
 	if (loaded)
 	{
+		if (!allowLockDeviceOnce && StringHlp::StrEqualW(lpFileName, L"\\\\.\\Kbd")) {
+			SetLastError(ERROR_ACCESS_DENIED);
+			return INVALID_HANDLE_VALUE;
+		}
 		if (StringHlp::StrEqualW(lpFileName, L"\\\\.\\TDKeybd")) {
 			SetLastError(ERROR_ACCESS_DENIED);
 			return INVALID_HANDLE_VALUE;
@@ -1388,7 +1429,7 @@ BOOL WINAPI hkExitWindowsEx(UINT uFlags, DWORD dwReason) {
 	else if ((uFlags & EWX_REBOOT) == EWX_REBOOT) op = L"重启您的计算机";
 	else if ((uFlags & EWX_LOGOFF) == EWX_LOGOFF) op = L"注销您的计算机";
 	wchar_t str[37];
-	swprintf_s(str, L"极域电子教室试图%s，是否允许极域继续操作？", op);
+	swprintf_s(str, L"联想电子教室试图%s，是否允许联想继续操作？", op);
 	if (MessageBox(NULL, str, L"JiYu Killer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDYES) 
 		return faExitWindowsEx(uFlags, dwReason);
 	SetLastError(ERROR_ACCESS_DENIED);
@@ -1429,9 +1470,9 @@ BOOL WINAPI hkCreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 
 	LPCWSTR lowStr = StringHlp::StrLoW(exePath);
 	if (StringHlp::StrContainsW(lowStr, L"shutdown.exe", NULL)) {
-		if (MessageBox(NULL, L"极域电子教室试图关机或重启，是否允许极域继续操作？", L"JiYu Killer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDNO) canContinue = false;
+		if (MessageBox(NULL, L"联想电子教室试图关机或重启，是否允许联想继续操作？", L"JiYu Killer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDNO) canContinue = false;
 	} 
-	else if (StringHlp::StrContainsW(lowStr, L"jiyutrainer.exe", NULL) 
+	else if (StringHlp::StrContainsW(lowStr, L"lxtctrainer.exe", NULL) 
 		|| StringHlp::StrContainsW(lowStr, L"explorer", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"sogouinput", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"ime", NULL)
@@ -1463,9 +1504,9 @@ BOOL WINAPI hkCreateProcessA(LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSE
 	LPCWSTR lowStrW = StringHlp::AnsiToUnicode(lowStr);
 
 	if (StringHlp::StrContainsA(lowStr, "shutdown.exe", NULL)) {
-		if (MessageBox(NULL, L"极域电子教室试图关机或重启，是否允许极域继续操作？", L"JiYu Killer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDNO) canContinue = false;
+		if (MessageBox(NULL, L"联想电子教室试图关机或重启，是否允许联想继续操作？", L"JiYu Killer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDNO) canContinue = false;
 	}
-	else if (StringHlp::StrContainsA(lowStr, "jiyutrainer.exe", NULL)
+	else if (StringHlp::StrContainsA(lowStr, "lxtctrainer.exe", NULL)
 		|| StringHlp::StrContainsA(lowStr, "explorer", NULL)
 		|| StringHlp::StrContainsA(lowStr, "sogouinput", NULL)
 		|| StringHlp::StrContainsA(lowStr, "ime", NULL)
@@ -1490,9 +1531,9 @@ UINT WINAPI hkWinExec(LPCSTR lpCmdLine, UINT uCmdShow) {
 	LPCWSTR uniStr = StringHlp::AnsiToUnicode(lpCmdLine);
 	LPCWSTR lowStr = StringHlp::StrLoW(uniStr);
 	if (StringHlp::StrContainsW(lowStr, L"shutdown.exe", NULL)) {
-		if (MessageBox(NULL, L"极域电子教室试图关机或重启，是否允许极域继续操作？", L"JiYu Killer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDNO) canContinue = false;
+		if (MessageBox(NULL, L"联想电子教室试图关机或重启，是否允许联想继续操作？", L"JiYu Killer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDNO) canContinue = false;
 	}
-	else if (StringHlp::StrContainsW(lowStr, L"jiyutrainer.exe", NULL)
+	else if (StringHlp::StrContainsW(lowStr, L"lxtctrainer.exe", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"explorer", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"sogouinput", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"baidupinyin", NULL)
@@ -1602,6 +1643,41 @@ HHOOK WINAPI hkSetWindowsHookExA(int idHook, HOOKPROC lpfn, HINSTANCE hmod, DWOR
 	}
 	return faSetWindowsHookExA(idHook, lpfn, hmod, dwThreadId);
 }
+HHOOK WINAPI hkSetWindowsHookExW(int idHook, HOOKPROC lpfn, HINSTANCE hmod, DWORD dwThreadId)
+{
+	if (loaded)
+	{
+		if (idHook == WH_CBT) {
+			SetLastError(ERROR_ACCESS_DENIED);
+			return FALSE;
+		}
+		if (idHook == WH_MOUSE_LL || idHook == WH_MOUSE || idHook == WH_KEYBOARD_LL) {
+			if (hmod == hLibTDMaster) {
+				switch (idHook)
+				{
+				case WH_MOUSE_LL:
+					lpMouseHookfn = lpfn;
+					hMouseHook = faSetWindowsHookExW(idHook, LowLevelMouseProc, hmod, dwThreadId);
+					VOutPutStatus(L"[K] WH_MOUSE_LL(W) -> 0x%08x", hMouseHook);
+					return (HHOOK)INVALID_HHOOK_MOUSE;
+				case WH_MOUSE:
+					lpMouseHookfn = lpfn;
+					hMouseHook = faSetWindowsHookExW(idHook, LowLevelMouseProc, hmod, dwThreadId);
+					VOutPutStatus(L"[K] WH_MOUSE(W) -> 0x%08x", hMouseHook);
+					return (HHOOK)INVALID_HHOOK_MOUSE;
+				case WH_KEYBOARD_LL:
+					lpKeyboardHookfn = lpfn;
+					hKeyboardHook = faSetWindowsHookExW(idHook, LowLevelKeyboardProc, hmod, dwThreadId);
+					VOutPutStatus(L"[K] WH_KEYBOARD_LL(W) -> 0x%08x", hKeyboardHook);
+					return (HHOOK)INVALID_HHOOK_KEYBOARD;
+				}
+			}
+			return FALSE;
+		}
+	}
+	return faSetWindowsHookExW(idHook, lpfn, hmod, dwThreadId);
+}
+
 LRESULT WINAPI hkCallNextHookEx(HHOOK hhk, int nCode, WPARAM wParam, LPARAM lParam) 
 {
 	if (hhk == (HHOOK)INVALID_HHOOK_MOUSE) return 0;
@@ -1932,7 +2008,7 @@ INT_PTR CALLBACK JiYuWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 			jiYuGBDeskRdWnd = FindWindowExW(hWnd, NULL, NULL, L"TDDesk Render Window");
 			if (jiYuGBDeskRdWnd == NULL) goto JOUT;
 
-			//处理新版极域的广播工具栏
+			//处理新版联想的广播工具栏
 			if (jiYuVersion == jiYuVersions::jiYuVersions402016HH) {
 				jiYuGBToolWnd = FindWindowExW(hWnd, jiYuGBDeskRdWnd, NULL, L"");
 				if (jiYuGBToolWnd != NULL) {
@@ -1989,7 +2065,7 @@ INT_PTR CALLBACK JiYuWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		case IDM_FULL:
 		case IDM_TOPMOST: return SendMessage(hWnd, WM_SYSCOMMAND, wParam, NULL);
 		case IDM_HELP_GB: {
-			MessageBox(hWnd, L"这个右键菜单是 JiYuTrainer 为方便您控制广播全屏和窗口添加的。\n如果您需要打开极域的右键菜单，请在窗口中心右键。\n关于更多帮助，请查看 JiYuTrainer 帮助文档。 ", L"JiYuTrainer 提示", MB_ICONINFORMATION);
+			MessageBox(hWnd, L"这个右键菜单是 JiYuTrainer 为方便您控制广播全屏和窗口添加的。\n如果您需要打开联想的右键菜单，请在窗口中心右键。\n关于更多帮助，请查看 JiYuTrainer 帮助文档。 ", L"JiYuTrainer 提示", MB_ICONINFORMATION);
 			return 0;
 		}
 		case IDM_HELP_GB2: {
