@@ -26,6 +26,71 @@ using namespace std;
 #define TIMER_CK 40116
 
 PSYSTEM_PROCESSES current_system_process = NULL;
+static bool NameHasKey(const WCHAR* name, int nlen, const WCHAR* key)
+{
+	int kl = 0;
+	while (key[kl]) kl++;
+	for (int i = 0; i + kl <= nlen; i++) {
+		int j = 0;
+		for (; j < kl; j++) {
+			WCHAR a = name[i + j], b = key[j];
+			if (a >= L'A' && a <= L'Z') a = (WCHAR)(a + 32);
+			if (b >= L'A' && b <= L'Z') b = (WCHAR)(b + 32);
+			if (a != b) break;
+		}
+		if (j == kl) return true;
+	}
+	return false;
+}
+static bool KillOneProcess(DWORD pid)
+{
+	HANDLE hProcess = NULL;
+	NTSTATUS status = MOpenProcessNt(pid, &hProcess);
+	if (NT_SUCCESS(status) && hProcess) {
+		status = MTerminateProcessNt(0, hProcess);
+		CloseHandle(hProcess);
+		if (NT_SUCCESS(status)) return true;
+	}
+	status = STATUS_UNSUCCESSFUL;
+	if (KForceKill(pid, &status)) return true;
+	return false;
+}
+static void KillHelperProcesses()
+{
+	if (!current_system_process) return;
+	static const WCHAR* kHelperKeys[] = { L"blacksl", L"pdelkeyb", L"devicecontrol" };
+	static DWORD lastKilledPid = 0;
+	static bool didRestart = false;
+	int killedNow = 0;
+	DWORD studentPid = 0;
+	bool done = false;
+	for (PSYSTEM_PROCESSES p = current_system_process; !done; p = PSYSTEM_PROCESSES(PCHAR(p) + p->NextEntryOffset)) {
+		done = p->NextEntryOffset == 0;
+		if (!p->ImageName.Length) continue;
+		DWORD pid = (DWORD)p->ProcessId;
+		if (pid <= 4) continue;
+		if (NameHasKey(p->ImageName.Buffer, p->ImageName.Length / (int)sizeof(WCHAR), L"student.exe")) studentPid = pid;
+		for (int i = 0; i < 3; i++) {
+			if (NameHasKey(p->ImageName.Buffer, p->ImageName.Length / (int)sizeof(WCHAR), kHelperKeys[i])) {
+				if (KillOneProcess(pid)) {
+					killedNow++;
+					if (lastKilledPid != pid) {
+						currentLogger->Log(L"[Kill] helper process terminated : %s [%d]", p->ImageName.Buffer, pid);
+						lastKilledPid = pid;
+					}
+				}
+				break;
+			}
+		}
+	}
+	if (killedNow > 0 && !didRestart && studentPid > 4) {
+		didRestart = true;
+		if (KillOneProcess(studentPid))
+			currentLogger->Log(L"[Restart] Student.exe [%d] terminated; ProcessProtect should relaunch it", studentPid);
+		else
+			currentLogger->Log(L"[Restart] cannot terminate Student.exe [%d], end it manually", studentPid);
+	}
+}
 
 TrainerWorkerInternal::TrainerWorkerInternal()
 {
@@ -388,6 +453,7 @@ void TrainerWorkerInternal::RunResetPid()
 		DWORD bsPid = 0;
 	if (LocateBlackSlient(&bsPid)) _BlackSlientPid = bsPid;
 	else _BlackSlientPid = 0;
+		KillHelperProcesses();
 
 if (LocateStudentMain(&newPid)) { //找到联想
 
@@ -434,6 +500,18 @@ if (LocateStudentMain(&newPid)) { //找到联想
 	}
 	else {
 		_MasterHelperPid = 0;
+	}
+	newPid = 0;
+	if (LocateMultiManager(&newPid)) {
+		if (_MultiManagerPid != newPid)
+		{
+			_MultiManagerPid = newPid;
+			if (InstallVirusForManager()) currentLogger->Log(L"[Inject] Multi.exe [%d] hooked", newPid);
+			else  currentLogger->LogError(L"[Inject] Multi.exe [%d] hook failed", newPid);
+		}
+	}
+	else {
+		_MultiManagerPid = 0;
 	}
 }
 
@@ -623,7 +701,7 @@ bool TrainerWorkerInternal::LocateStudentMainLocation()
 
 	//直接尝试查找
 		//Lenovo teaching system install paths (primary target)
-	static LPCWSTR lxtcPaths[] = { L"C:\\Program Files (x86)\\Lenovo teaching system\\Student.exe", L"C:\\Program Files (x86)\\Lenovo teaching system\\MultiRender.exe", nullptr };
+	static LPCWSTR lxtcPaths[] = { L"C:\\Program Files (x86)\\Lenovo teaching system\\Student.exe", L"C:\\Program Files (x86)\\Lenovo teaching system\\MultiRender.exe", L"C:\\Program Files (x86)\\Lenovo teaching system\\Multi.exe", nullptr };
 	for (int li = 0; lxtcPaths[li]; li++) {
 		if (Path::Exists(lxtcPaths[li])) {
 			_StudentMainPath = lxtcPaths[li];
@@ -696,7 +774,22 @@ bool TrainerWorkerInternal::LocateStudentMain(DWORD *outFirstPid)
 	}
 	return false;
 }
-bool TrainerWorkerInternal::LocateMasterHelper(DWORD *outFirstPid)
+bool TrainerWorkerInternal::LocateMultiManager(DWORD *outFirstPid)
+{
+	if (current_system_process)
+	{
+		bool done = false;
+		for (PSYSTEM_PROCESSES p = current_system_process; !done; p = PSYSTEM_PROCESSES(PCHAR(p) + p->NextEntryOffset)) {
+			if (p->ImageName.Length && StrEqual(p->ImageName.Buffer, L"Multi.exe"))
+			{
+				if (outFirstPid)*outFirstPid = (DWORD)p->ProcessId;
+				return true;
+			}
+			done = p->NextEntryOffset == 0;
+		}
+	}
+	return false;
+}bool TrainerWorkerInternal::LocateMasterHelper(DWORD *outFirstPid)
 {
 	if (current_system_process)
 	{
@@ -836,7 +929,10 @@ bool TrainerWorkerInternal::InstallVirus()
 {
 	return InjectDll(_StudentMainPid, currentApp->GetPartFullPath(PART_HOOKER));
 }
-bool TrainerWorkerInternal::InstallVirusForMaster()
+bool TrainerWorkerInternal::InstallVirusForManager()
+{
+	return InjectDll(_MultiManagerPid, currentApp->GetPartFullPath(PART_HOOKER));
+}bool TrainerWorkerInternal::InstallVirusForMaster()
 {
 	return InjectDll(_MasterHelperPid, currentApp->GetPartFullPath(PART_HOOKER));
 }
@@ -947,6 +1043,10 @@ bool TrainerWorkerInternal::UnInjectDll(DWORD pid, LPCWSTR moduleName)
 }
 bool TrainerWorkerInternal::UnLoadAllVirus()
 {
+	if (_MultiManagerPid > 4) {
+		if (UnInjectDll(_MultiManagerPid, L"LxtcTrainerHooks.dll"))
+			currentLogger->Log(L"[Unload] Multi.exe unhooked");
+	}
 	if (_MasterHelperPid > 4) {
 		if (UnInjectDll(_MasterHelperPid, L"LxtcTrainerHooks.dll"))
 			currentLogger->Log(L"已强制卸载 MasterHelper 病毒");
@@ -1065,7 +1165,7 @@ bool TrainerWorkerInternal::ChecIsJIYuWindow(HWND hWnd, LPDWORD outPid, LPDWORD 
 	DWORD pid = 0, tid = GetWindowThreadProcessId(hWnd, &pid);
 	if (outPid) *outPid = pid;
 	if (outTid) *outTid = tid;
-	return pid == _StudentMainPid || pid == _MasterHelperPid;
+	return pid == _StudentMainPid || pid == _MasterHelperPid || pid == _MultiManagerPid;
 }
 bool TrainerWorkerInternal::IsBlackSlientWindow(HWND hWnd) {
 	if (_BlackSlientPid <= 4) return false;

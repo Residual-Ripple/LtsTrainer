@@ -109,6 +109,7 @@ private:
 	bool _VirusInstalled = false;
 	DWORD _StudentMainPid = 0;
 	DWORD _MasterHelperPid = 0;
+	DWORD _MultiManagerPid = 0;
 	DWORD _BlackSlientPid = 0;
 	std::wstring _StudentMainPath;
 	bool _StudentMainFileLocated = false;
@@ -152,6 +153,7 @@ private:
 	bool ReadTopDomanPassword(BOOL forceKnock);
 	bool LocateStudentMainLocation();
 	bool LocateStudentMain(DWORD *outFirstPid);
+	bool LocateMultiManager(DWORD *outFirstPid);
 	bool LocateMasterHelper(DWORD *outFirstPid);
 	bool LocateBlackSlient(DWORD *outFirstPid);
 	bool CheckPidFilterd(DWORD pid);
@@ -166,6 +168,7 @@ private:
 	/*Virus*/
 
 	bool InstallVirus();
+	bool InstallVirusForManager();
 	bool InstallVirusForMaster();
 	bool InjectDll(DWORD pid, LPCWSTR dllPath);
 	bool UnInjectDll(DWORD pid, LPCWSTR moduleName);

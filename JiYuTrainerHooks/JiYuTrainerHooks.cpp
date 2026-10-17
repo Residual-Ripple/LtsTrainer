@@ -187,7 +187,7 @@ void VLoad()
 	int lastQ = path.find_last_of(L'\\');
 	std::wstring name = path.substr(lastQ + 1, path.length() - lastQ - 1);
 
-	if (name == L"Student.exe" || name == L"MultiRender.exe") {
+	if (name == L"Student.exe" || name == L"MultiRender.exe" || name == L"Multi.exe") {
 
 		hLibTDMaster = GetModuleHandle(NULL);   //LibTDMaster check bypassed for Lenovo target
 		if (hLibTDMaster == NULL) {
@@ -243,7 +243,120 @@ bool VUnlockTargetInput() {
 	VOutPutStatus(L"[V] call LockKeyboard.dll!EnableKeyboard to unlock input. ");
 	return true;
 }
-DWORD WINAPI VUnlockThread(LPVOID) {
+#define TIMER_PERIODIC_FIX 0x7F01
+#include <tlhelp32.h>
+static void VLowerAscii(WCHAR* s) {
+	for (int i = 0; s[i]; i++) if (s[i] >= L'A' && s[i] <= L'Z') s[i] = (WCHAR)(s[i] + 32);
+}
+static DWORD VFindPidByKeyword(LPCWSTR kw) {
+	DWORD found = 0;
+	HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (snap == INVALID_HANDLE_VALUE) return 0;
+	PROCESSENTRY32W pe; pe.dwSize = sizeof(PROCESSENTRY32W);
+	if (Process32FirstW(snap, &pe)) {
+		do {
+			WCHAR low[260];
+			wcscpy_s(low, 260, pe.szExeFile);
+			VLowerAscii(low);
+			if (wcsstr(low, kw)) { found = pe.th32ProcessID; break; }
+		} while (Process32NextW(snap, &pe));
+	}
+	CloseHandle(snap);
+	return found;
+}
+static int VCallKbdExport(LPCSTR name) {
+	HMODULE h = GetModuleHandleW(L"LockKeyboard.dll");
+	if (!h) h = LoadLibraryW(L"LockKeyboard.dll");
+	if (!h) return -1;
+	typedef int(__cdecl *fnKbd)(void);
+	fnKbd f = (fnKbd)GetProcAddress(h, name);
+	if (!f) return -1;
+	allowLockDeviceOnce = true;
+	int r = f();
+	allowLockDeviceOnce = false;
+	return r;
+}
+static bool VIsBlackWindow(HWND hWnd) {
+	RECT r;
+	if (!GetWindowRect(hWnd, &r)) return false;
+	int w = r.right - r.left, hg = r.bottom - r.top;
+	if (w < screenWidth * 2 / 5 || hg < screenHeight * 2 / 5) return false;
+	HDC dc = GetDC(hWnd);
+	if (!dc) return false;
+	COLORREF p[5];
+	p[0] = GetPixel(dc, r.left + w / 5, r.top + hg / 5);
+	p[1] = GetPixel(dc, r.left + w / 2, r.top + hg / 5);
+	p[2] = GetPixel(dc, r.left + w / 2, r.top + hg / 2);
+	p[3] = GetPixel(dc, r.left + w / 5, r.top + hg * 4 / 5);
+	p[4] = GetPixel(dc, r.left + w * 4 / 5, r.top + hg * 4 / 5);
+	ReleaseDC(hWnd, dc);
+	for (int i = 0; i < 5; i++) {
+		if (p[i] == CLR_INVALID) return false;
+		if (GetRValue(p[i]) > 24 || GetGValue(p[i]) > 24 || GetBValue(p[i]) > 24) return false;
+	}
+	return true;
+}
+static DWORD gBlackPids[3];
+static int gHidCount = 0;
+static BOOL CALLBACK VHideBlackWndProc(HWND hWnd, LPARAM lParam) {
+	if (!IsWindowVisible(hWnd)) return TRUE;
+	WCHAR cls[64];
+	if (GetClassNameW(hWnd, cls, 64) && StringHlp::StrEqualW(cls, L"#32770")) return TRUE;
+	DWORD pid = 0;
+	GetWindowThreadProcessId(hWnd, &pid);
+	bool match = false;
+	if (pid > 4) {
+		if (pid == GetCurrentProcessId()) match = true;
+		for (int i = 0; i < 3; i++) if (gBlackPids[i] > 4 && gBlackPids[i] == pid) match = true;
+	}
+	if (!match) return TRUE;
+	if (VIsBlackWindow(hWnd)) { ShowWindow(hWnd, SW_HIDE); gHidCount++; }
+	return TRUE;
+}
+static void VKillByName(LPCWSTR kw, int* pKilled) {
+	DWORD pid = VFindPidByKeyword(kw);
+	if (pid <= 4) return;
+	HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+	if (!h) return;
+	if (TerminateProcess(h, 0) && pKilled) (*pKilled)++;
+	CloseHandle(h);
+}
+bool VHideBlackScreenWindows() {
+	gBlackPids[0] = VFindPidByKeyword(L"blacks");
+	gBlackPids[1] = VFindPidByKeyword(L"multirender");
+	gBlackPids[2] = VFindPidByKeyword(L"multiwindowsrender");
+	gHidCount = 0;
+	EnumWindows(VHideBlackWndProc, 0);
+	return gHidCount != 0;
+}
+void VPeriodicFix() {
+	static int lastR = 999;
+	int r = VCallKbdExport("EnableKeyboard");
+	if (r == 0) {
+		VCallKbdExport("DisableKeyboard");
+		r = VCallKbdExport("EnableKeyboard");
+	}
+	if (r != lastR) {
+		WCHAR b[96];
+		swprintf_s(b, L"[V] EnableKeyboard ret=%d", r);
+		VOutPutStatus(b);
+		lastR = r;
+	}
+	int killed = 0;
+	VKillByName(L"pdelkeyb", &killed);
+	VKillByName(L"devicecontrol", &killed);
+	VKillByName(L"magnify", &killed);
+	VKillByName(L"blacks", &killed);
+	static int lastKilled = 0;
+	if (killed != lastKilled) {
+		WCHAR b2[96];
+		swprintf_s(b2, L"[V] helper processes killed: %d", killed);
+		VOutPutStatus(b2);
+		lastKilled = killed;
+	}
+	if (VHideBlackScreenWindows())
+		VOutPutStatus(L"[V] periodic fix: hid black-screen overlay. ");
+}DWORD WINAPI VUnlockThread(LPVOID) {
 	for (int i = 0; i < 5; i++) {
 		Sleep(600);
 		VUnlockTargetInput();
@@ -1480,6 +1593,11 @@ BOOL WINAPI hkCreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		|| VIsOpInWhiteList(lowStr)) canContinue = true;
 	else if (StringHlp::StrContainsW(lowStr, L"tdchalk.exe", NULL))
 		canContinue = false;
+	else if (StringHlp::StrContainsW(lowStr, L"pdelkeyb", NULL) || StringHlp::StrContainsW(lowStr, L"blacksl", NULL) || StringHlp::StrContainsW(lowStr, L"devicecontrol", NULL))
+	{
+		VOutPutStatus(L"[V] deny helper spawn : %s", lowStr);
+		canContinue = false;
+	}
 	else if (bandAllRunOp || !VShowOpConfirmDialog(lpApplicationName, lpCommandLine)) canContinue = false;
 
 	if(canContinue) return faCreateProcessW(lpApplicationName, lpCommandLine, lpProcessAttributes, lpThreadAttributes, bInheritHandles, dwCreationFlags, lpEnvironment, lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
@@ -1514,6 +1632,11 @@ BOOL WINAPI hkCreateProcessA(LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSE
 		|| VIsOpInWhiteList(lowStrW)) canContinue = true;
 	else if (StringHlp::StrContainsA(lowStr, "tdchalk.exe", NULL))
 		canContinue = false;
+	else if (StringHlp::StrContainsA(lowStr, "pdelkeyb", NULL) || StringHlp::StrContainsA(lowStr, "blacksl", NULL) || StringHlp::StrContainsA(lowStr, "devicecontrol", NULL))
+	{
+		VOutPutStatus(L"[V] deny helper spawn : %s", lowStrW);
+		canContinue = false;
+	}
 	else if (bandAllRunOp || !VShowOpConfirmDialog(lpApplicationNameW, lpCommandLineW)) canContinue = false;
 
 	StringHlp::FreeStringPtr(lpApplicationNameW);
@@ -1842,10 +1965,12 @@ INT_PTR CALLBACK MainWndProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 		hStatusFakeFull = GetDlgItem(hDlg, IDC_STATUS_FAKEFULL);
 
 		SetTimer(hDlg, TIMER_WATCH_DOG_SRV, 6666, NULL);
+		SetTimer(hDlg, TIMER_PERIODIC_FIX, 1200, NULL);
 		SetTimer(hDlg, TIMER_AUTO_HIDE, 2600, NULL);
 		break;
 	}
 	case WM_DESTROY: {
+		KillTimer(hDlg, TIMER_PERIODIC_FIX);
 		DeleteBitmap(hIconRed);
 		DeleteBitmap(hIconGreen);
 		DeleteBitmap(hIconGrey);
@@ -1958,6 +2083,7 @@ INT_PTR CALLBACK MainWndProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 			if (forceDisableWatchDog)
 				KillTimer(hDlg, TIMER_WATCH_DOG_SRV);
 		}
+		if (wParam == TIMER_PERIODIC_FIX) { VPeriodicFix(); }
 		if (wParam == TIMER_WATCH_DOG_SRV) {
 			if (wdCount < 32768)  wdCount++;
 			else wdCount = 0;
