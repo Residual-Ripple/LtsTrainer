@@ -58,37 +58,23 @@ static bool KillOneProcess(DWORD pid)
 static void KillHelperProcesses()
 {
 	if (!current_system_process) return;
-	static const WCHAR* kHelperKeys[] = { L"blacksl", L"pdelkeyb", L"devicecontrol" };
+	static const WCHAR* kHelperKeys[] = { L"blacksl", L"pdelkeyb", L"devicecontrol", L"processprotect" };
 	static DWORD lastKilledPid = 0;
-	static bool didRestart = false;
-	int killedNow = 0;
-	DWORD studentPid = 0;
 	bool done = false;
 	for (PSYSTEM_PROCESSES p = current_system_process; !done; p = PSYSTEM_PROCESSES(PCHAR(p) + p->NextEntryOffset)) {
 		done = p->NextEntryOffset == 0;
 		if (!p->ImageName.Length) continue;
 		DWORD pid = (DWORD)p->ProcessId;
 		if (pid <= 4) continue;
-		if (NameHasKey(p->ImageName.Buffer, p->ImageName.Length / (int)sizeof(WCHAR), L"student.exe")) studentPid = pid;
-		for (int i = 0; i < 3; i++) {
+		for (int i = 0; i < 4; i++) {
 			if (NameHasKey(p->ImageName.Buffer, p->ImageName.Length / (int)sizeof(WCHAR), kHelperKeys[i])) {
-				if (KillOneProcess(pid)) {
-					killedNow++;
-					if (lastKilledPid != pid) {
-						currentLogger->Log(L"[Kill] helper process terminated : %s [%d]", p->ImageName.Buffer, pid);
-						lastKilledPid = pid;
-					}
+				if (KillOneProcess(pid) && lastKilledPid != pid) {
+					currentLogger->Log(L"[Kill] helper process terminated : %s [%d]", p->ImageName.Buffer, pid);
+					lastKilledPid = pid;
 				}
 				break;
 			}
 		}
-	}
-	if (killedNow > 0 && !didRestart && studentPid > 4) {
-		didRestart = true;
-		if (KillOneProcess(studentPid))
-			currentLogger->Log(L"[Restart] Student.exe [%d] terminated; ProcessProtect should relaunch it", studentPid);
-		else
-			currentLogger->Log(L"[Restart] cannot terminate Student.exe [%d], end it manually", studentPid);
 	}
 }
 

@@ -301,16 +301,20 @@ static int gHidCount = 0;
 static BOOL CALLBACK VHideBlackWndProc(HWND hWnd, LPARAM lParam) {
 	if (!IsWindowVisible(hWnd)) return TRUE;
 	WCHAR cls[64];
-	if (GetClassNameW(hWnd, cls, 64) && StringHlp::StrEqualW(cls, L"#32770")) return TRUE;
+	cls[0] = 0;
+	GetClassNameW(hWnd, cls, 64);
+	if (StringHlp::StrEqualW(cls, L"#32770")) return TRUE;
 	DWORD pid = 0;
 	GetWindowThreadProcessId(hWnd, &pid);
-	bool match = false;
-	if (pid > 4) {
-		if (pid == GetCurrentProcessId()) match = true;
-		for (int i = 0; i < 3; i++) if (gBlackPids[i] > 4 && gBlackPids[i] == pid) match = true;
+	bool isBlackProc = (gBlackPids[0] > 4 && gBlackPids[0] == pid);
+	bool isRender = (gBlackPids[1] > 4 && gBlackPids[1] == pid) || (gBlackPids[2] > 4 && gBlackPids[2] == pid);
+	bool isSelf = (pid == GetCurrentProcessId());
+	bool isDmt = StringHlp::StrEqualW(cls, L"DMTWnd");
+	if (!isBlackProc && !isDmt && !isRender && !isSelf) return TRUE;
+	if (isBlackProc || isDmt || ((isRender || isSelf) && VIsBlackWindow(hWnd))) {
+		ShowWindow(hWnd, SW_HIDE);
+		gHidCount++;
 	}
-	if (!match) return TRUE;
-	if (VIsBlackWindow(hWnd)) { ShowWindow(hWnd, SW_HIDE); gHidCount++; }
 	return TRUE;
 }
 static void VKillByName(LPCWSTR kw, int* pKilled) {
@@ -329,7 +333,19 @@ bool VHideBlackScreenWindows() {
 	EnumWindows(VHideBlackWndProc, 0);
 	return gHidCount != 0;
 }
-void VPeriodicFix() {
+static void VCallHookLibUnlock()
+{
+	HMODULE h = GetModuleHandleW(L"HookLib.dll");
+	if (!h) h = LoadLibraryW(L"HookLib.dll");
+	if (!h) return;
+	typedef int(__cdecl *fnLock)(int);
+	fnLock f = (fnLock)GetProcAddress(h, "Lock");
+	if (!f) return;
+	DWORD esp0 = 0;
+	__asm { mov esp0, esp }
+	f(0);
+	__asm { mov esp, esp0 }
+}void VPeriodicFix() {
 	static int lastR = 999;
 	int r = VCallKbdExport("EnableKeyboard");
 	if (r == 0) {
@@ -343,6 +359,7 @@ void VPeriodicFix() {
 		lastR = r;
 	}
 	int killed = 0;
+	VCallHookLibUnlock();
 	VKillByName(L"pdelkeyb", &killed);
 	VKillByName(L"devicecontrol", &killed);
 	VKillByName(L"magnify", &killed);
