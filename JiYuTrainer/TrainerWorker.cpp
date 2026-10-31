@@ -266,7 +266,7 @@ bool TrainerWorkerInternal::Kill(bool autoWork)
 		if(!vkill){
 			MSGBOXPARAMSW mbp = { 0 };
 			mbp.hwndOwner = hWndMain;
-			mbp.lpszCaption = L"JiYuTrainer - 提示";
+			mbp.lpszCaption = L"LtsTrainer - 提示";
 			mbp.lpszText = L"您是否希望使用病毒进行爆破？";
 			mbp.cbSize = sizeof(MSGBOXPARAMSW);
 			mbp.dwStyle = MB_ICONEXCLAMATION | MB_TOPMOST | MB_YESNOCANCEL;
@@ -310,7 +310,7 @@ bool TrainerWorkerInternal::Kill(bool autoWork)
 		else if (status != STATUS_INVALID_CID && status != STATUS_INVALID_HANDLE) {
 			currentLogger->LogError(L"结束进程错误：0x%08X，请手动结束", status);
 			if (!autoWork)
-				MessageBox(hWndMain, L"无法结束联想电子教室，您需要使用其他工具手动结束", L"JiYuTrainer - 错误", MB_ICONERROR);;
+				MessageBox(hWndMain, L"无法结束联想电子教室，您需要使用其他工具手动结束", L"LtsTrainer - 错误", MB_ICONERROR);;
 			CloseHandle(hProcess);
 			return false;
 		}
@@ -325,7 +325,7 @@ bool TrainerWorkerInternal::Kill(bool autoWork)
 	}
 
 FORCEKILL:
-	if (XDriverLoaded() && MessageBox(hWndMain, L"普通无法结束联想，是否调用驱动结束联想？\n（驱动可能不稳定，请慎用。您也可以使用 PCHunter 等安全软件进行强杀）", L"JiYuTrainer - 提示", MB_ICONEXCLAMATION | MB_YESNO | MB_TOPMOST) == IDYES)
+	if (XDriverLoaded() && MessageBox(hWndMain, L"普通无法结束联想，是否调用驱动结束联想？\n（驱动可能不稳定，请慎用。您也可以使用 PCHunter 等安全软件进行强杀）", L"LtsTrainer - 提示", MB_ICONEXCLAMATION | MB_YESNO | MB_TOPMOST) == IDYES)
 	{
 		if (KForceKill(_StudentMainPid, &status)) {
 			_StudentMainPid = 0;
@@ -687,10 +687,10 @@ bool TrainerWorkerInternal::LocateStudentMainLocation()
 
 	//直接尝试查找
 		//Lenovo teaching system install paths (primary target)
-	static LPCWSTR lxtcPaths[] = { L"C:\\Program Files (x86)\\Lenovo teaching system\\Student.exe", L"C:\\Program Files (x86)\\Lenovo teaching system\\MultiRender.exe", L"C:\\Program Files (x86)\\Lenovo teaching system\\Multi.exe", nullptr };
-	for (int li = 0; lxtcPaths[li]; li++) {
-		if (Path::Exists(lxtcPaths[li])) {
-			_StudentMainPath = lxtcPaths[li];
+	static LPCWSTR ltsPaths[] = { L"C:\\Program Files (x86)\\Lenovo teaching system\\Student.exe", L"C:\\Program Files (x86)\\Lenovo teaching system\\MultiRender.exe", L"C:\\Program Files (x86)\\Lenovo teaching system\\Multi.exe", nullptr };
+	for (int li = 0; ltsPaths[li]; li++) {
+		if (Path::Exists(ltsPaths[li])) {
+			_StudentMainPath = ltsPaths[li];
 			_StudentMainFileLocated = true;
 			_StudentMainFileLocatedByProcess = false;
 			return true;
@@ -1030,16 +1030,16 @@ bool TrainerWorkerInternal::UnInjectDll(DWORD pid, LPCWSTR moduleName)
 bool TrainerWorkerInternal::UnLoadAllVirus()
 {
 	if (_MultiManagerPid > 4) {
-		if (UnInjectDll(_MultiManagerPid, L"LxtcTrainerHooks.dll"))
+		if (UnInjectDll(_MultiManagerPid, L"LtsTrainerHooks.dll"))
 			currentLogger->Log(L"[Unload] Multi.exe unhooked");
 	}
 	if (_MasterHelperPid > 4) {
-		if (UnInjectDll(_MasterHelperPid, L"LxtcTrainerHooks.dll"))
+		if (UnInjectDll(_MasterHelperPid, L"LtsTrainerHooks.dll"))
 			currentLogger->Log(L"已强制卸载 MasterHelper 病毒");
 		//KillProcess(_MasterHelperPid, false);
 	}
 	if (_StudentMainPid > 4)
-		if (UnInjectDll(_StudentMainPid, L"LxtcTrainerHooks.dll"))
+		if (UnInjectDll(_StudentMainPid, L"LtsTrainerHooks.dll"))
 			currentLogger->Log(L"已强制卸载 StudentMain 病毒");
 
 	return false;
@@ -1241,7 +1241,7 @@ BOOL CALLBACK TrainerWorkerInternal::EnumWindowsProc(HWND hWnd, LPARAM lParam)
 	if (IsWindowVisible(hWnd) && self->ChecIsJIYuWindow(hWnd, NULL, NULL)) {
 		WCHAR text[50];
 		GetWindowText(hWnd, text, 50);
-		if (StrEqual(text, L"JiYu Trainer Virus Window")) return TRUE;
+		if (StrEqual(text, L"LtsTrainer Virus Window")) return TRUE;
 
 		RECT rc;
 		GetWindowRect(hWnd, &rc);

@@ -23,7 +23,7 @@
     <ProjectGuid>{EB0B4E2A-B72C-436C-B640-341BFD717051}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>JiYuTrainerHooks</RootNamespace>
-    <TargetName>LxtcTrainerHooks</TargetName>
+    <TargetName>LtsTrainerHooks</TargetName>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

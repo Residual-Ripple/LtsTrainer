@@ -67,7 +67,7 @@ int JTAppInternal::CheckAndInstall()
 		//创建临时目录
 		WCHAR szTempPath[MAX_PATH];
 		GetTempPath(MAX_PATH, szTempPath);
-		wcscat_s(szTempPath, L"\\lxtctrainer");
+		wcscat_s(szTempPath, L"\\LtsTrainer");
 		if (!Path::Exists(szTempPath) && !CreateDirectory(szTempPath, NULL)) {
 			appLogger->LogError2(L"创建临时目录失败：%s (%d)", PRINT_LAST_ERROR_STR);
 			return -1;
@@ -75,9 +75,9 @@ int JTAppInternal::CheckAndInstall()
 		WCHAR szTempMainPath[MAX_PATH];
 		WCHAR szTempMainStartBatPath[MAX_PATH];
 		wcscpy_s(szTempMainPath, szTempPath);
-		wcscat_s(szTempMainPath, L"\\lxtctrainer.exe");
+		wcscat_s(szTempMainPath, L"\\LtsTrainer.exe");
 		wcscpy_s(szTempMainStartBatPath, szTempPath);
-		wcscat_s(szTempMainStartBatPath, L"\\lxtctrainerStart.bat");
+		wcscat_s(szTempMainStartBatPath, L"\\LtsTrainerStart.bat");
 		//复制本体
 		if (!CopyFile(fullPath.c_str(), szTempMainPath, FALSE)) {
 			appLogger->LogError2(L"创建主程序失败：%s (%d)", PRINT_LAST_ERROR_STR);
@@ -129,7 +129,7 @@ int JTAppInternal::CheckAndInstall()
 	//更新器
 	if (appIsInstaller) {
 		//须更新主exe
-		std::wstring mainExePath = fullDir + L"\\lxtctrainer.exe";
+		std::wstring mainExePath = fullDir + L"\\LtsTrainer.exe";
 		if (Path::Exists(mainExePath) && !DeleteFile(mainExePath.c_str())) {
 			appLogger->LogError2(L"无法更新原主exe ：%s (%d)", PRINT_LAST_ERROR_STR);
 			return -1;
@@ -418,7 +418,77 @@ bool JTAppInternal::RunArgeementDialog()
 	return false;
 }
 
-int JTAppInternal::RunInternal()
+static bool AppIsElevated()
+{
+	HANDLE hToken = NULL;
+	bool elevated = false;
+	if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+		TOKEN_ELEVATION te;
+		DWORD cbSize = 0;
+		ZeroMemory(&te, sizeof(te));
+		if (GetTokenInformation(hToken, TokenElevation, &te, sizeof(te), &cbSize))
+			elevated = te.TokenIsElevated != 0;
+		CloseHandle(hToken);
+	}
+	return elevated;
+}
+static bool AppCommandLineHasArg(LPCWSTR cmdLine, LPCWSTR arg)
+{
+	int n = lstrlenW(arg);
+	for (LPCWSTR p = cmdLine; *p; p++) {
+		if ((p == cmdLine || p[-1] == L' ' || p[-1] == L'\t') && _wcsnicmp(p, arg, n) == 0) {
+			WCHAR c = p[n];
+			if (c == 0 || c == L' ' || c == L'\t') return true;
+		}
+	}
+	return false;
+}
+bool AppEnsureElevated()
+{
+	if (AppIsElevated()) {
+		currentLogger->Log(L"已获得管理员权限");
+		return true;
+	}
+	LPCWSTR cmdLine = GetCommandLineW();
+	if (AppCommandLineHasArg(cmdLine, L"-elevated")) {
+		currentLogger->LogWarn(L"未获得管理员权限，程序将以受限模式运行，可能无法注入学生端");
+		return true;
+	}
+	WCHAR exePath[MAX_PATH];
+	if (!GetModuleFileNameW(NULL, exePath, MAX_PATH)) return true;
+	WCHAR exeDir[MAX_PATH];
+	wcscpy_s(exeDir, MAX_PATH, exePath);
+	PathRemoveFileSpec(exeDir);
+	LPCWSTR q = cmdLine;
+	if (*q == L'"') {
+		q++;
+		while (*q && *q != L'"') q++;
+		if (*q == L'"') q++;
+	}
+	else {
+		while (*q && *q != L' ' && *q != L'\t') q++;
+	}
+	WCHAR params[4096];
+	swprintf_s(params, 4096, L"%s -elevated", q);
+	currentLogger->Log(L"未获得管理员权限，正在以管理员身份重新启动程序");
+	SHELLEXECUTEINFOW sei;
+	ZeroMemory(&sei, sizeof(sei));
+	sei.cbSize = sizeof(sei);
+	sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI;
+	sei.lpVerb = L"runas";
+	sei.lpFile = exePath;
+	sei.lpParameters = params;
+	sei.lpDirectory = exeDir;
+	sei.nShow = SW_SHOWNORMAL;
+	if (ShellExecuteExW(&sei)) {
+		if (sei.hProcess) CloseHandle(sei.hProcess);
+		return false;
+	}
+	DWORD err = GetLastError();
+	if (err == ERROR_CANCELLED) currentLogger->LogWarn(L"用户取消了管理员权限请求，程序将以受限模式运行");
+	else currentLogger->LogWarn(L"以管理员身份重新启动失败 (GetLastError=%d)，程序将以受限模式运行", err);
+	return true;
+}int JTAppInternal::RunInternal()
 {
 	setlocale(LC_ALL, "chs");
 
@@ -436,6 +506,7 @@ int JTAppInternal::RunInternal()
 	//指定日志为文件模式
 	appLogger->SetLogOutPut(LogOutPutFile);
 	appLogger->SetLogOutPutFile(fullLogPath.c_str());
+	if (!AppEnsureElevated()) return 0;
 
 	InitCommandLine();
 	InitArgs();
@@ -449,10 +520,10 @@ int JTAppInternal::RunInternal()
 		appIsConfigMode = true;
 	if (appArgBreak) {
 #ifdef _DEBUG
-		if (MessageBox(NULL, L"This is a Debug version", L"JiYuTrainer - Debug Break", MB_YESNO | MB_ICONEXCLAMATION) == IDYES)
+		if (MessageBox(NULL, L"This is a Debug version", L"LtsTrainer - Debug Break", MB_YESNO | MB_ICONEXCLAMATION) == IDYES)
 			DebugBreak();
 #else
-		if (MessageBox(NULL, L"This is a Release version", L"JiYuTrainer - Debug Break", MB_YESNO | MB_ICONEXCLAMATION) == IDYES)
+		if (MessageBox(NULL, L"This is a Release version", L"LtsTrainer - Debug Break", MB_YESNO | MB_ICONEXCLAMATION) == IDYES)
 			DebugBreak();
 #endif
 	}
@@ -641,7 +712,7 @@ bool JTAppInternal::CheckAppCorrectness()
 void JTAppInternal::MergePathString()
 {
 	fullDriverPath = fullDir + L"\\JiYuTrainerDriver.sys";
-	fullHookerPath = fullDir + L"\\LxtcTrainerHooks.dll";
+	fullHookerPath = fullDir + L"\\LtsTrainerHooks.dll";
 	fullSciterPath = fullDir + L"\\sciter.dll";
 }
 void JTAppInternal::InitPath()

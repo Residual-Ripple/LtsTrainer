@@ -6,7 +6,7 @@ std::list<HWND> jiyuWnds;
 
 void MsgCenterSendToVirus(LPCWSTR buff, HWND form) 
 {
-	HWND receiveWindow = FindWindow(NULL, L"JiYu Trainer Virus Window");
+	HWND receiveWindow = FindWindow(NULL, L"LtsTrainer Virus Window");
 	if (receiveWindow) {
 		COPYDATASTRUCT copyData = { 0 };
 		copyData.lpData = (PVOID)buff;

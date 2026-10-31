@@ -166,7 +166,7 @@ BOOL MUnLoadDriverServiceWithMessage(const wchar_t* szSvrName)
 	{
 		lastErr = GetLastError();
 		FAST_STR_BINDER(str, L"卸载驱动错误，打开驱动管理错误：%s\n请尝试以管理员身份运行软件。", 128, SysHlp::ConvertErrorCodeToString(lastErr));
-		MessageBox(NULL, str, L"JiYuTrainer - 错误", MB_ICONERROR);
+		MessageBox(NULL, str, L"LtsTrainer - 错误", MB_ICONERROR);
 		bRet = FALSE;
 		goto BeforeLeave;
 	}
@@ -176,12 +176,12 @@ BOOL MUnLoadDriverServiceWithMessage(const wchar_t* szSvrName)
 	{
 		lastErr = GetLastError();
 		if (lastErr == ERROR_SERVICE_DOES_NOT_EXIST) 
-			MessageBox(NULL, L"驱动已卸载并删除，请不要重复操作", L"JiYuTrainer - 提示", MB_ICONEXCLAMATION);
+			MessageBox(NULL, L"驱动已卸载并删除，请不要重复操作", L"LtsTrainer - 提示", MB_ICONEXCLAMATION);
 		else if ( lastErr == ERROR_SERVICE_MARKED_FOR_DELETE) 
-			MessageBox(NULL, L"没有在这台计算机上找到找到驱动，可能是驱动已经被卸载了", L"JiYuTrainer - 提示", MB_ICONEXCLAMATION);
+			MessageBox(NULL, L"没有在这台计算机上找到找到驱动，可能是驱动已经被卸载了", L"LtsTrainer - 提示", MB_ICONEXCLAMATION);
 		else {
 			FAST_STR_BINDER(str, L"卸载驱动错误，打开驱动错误：%s", 128, SysHlp::ConvertErrorCodeToString(lastErr));
-			MessageBox(NULL, str, L"JiYuTrainer - 错误", MB_ICONERROR);
+			MessageBox(NULL, str, L"LtsTrainer - 错误", MB_ICONERROR);
 		}
 		bRet = FALSE;
 		goto BeforeLeave;
@@ -190,23 +190,23 @@ BOOL MUnLoadDriverServiceWithMessage(const wchar_t* szSvrName)
 	if (!ControlService(hServiceDDK, SERVICE_CONTROL_STOP, &SvrSta)) {
 		lastErr = GetLastError();
 		if (lastErr == ERROR_SERVICE_MARKED_FOR_DELETE) {
-			MessageBox(NULL, L"驱动已卸载并删除，请不要重复操作", L"JiYuTrainer - 提示", MB_ICONEXCLAMATION);
+			MessageBox(NULL, L"驱动已卸载并删除，请不要重复操作", L"LtsTrainer - 提示", MB_ICONEXCLAMATION);
 			bRet = FALSE;
 			goto BeforeLeave;
 		}
 		else {
 			FAST_STR_BINDER(str, L"卸载驱动错误，停止驱动失败：%s", 128, SysHlp::ConvertErrorCodeToString(lastErr));
-			MessageBox(NULL, str, L"JiYuTrainer - 错误", MB_ICONERROR);
+			MessageBox(NULL, str, L"LtsTrainer - 错误", MB_ICONERROR);
 		}
 	}
 	//动态卸载驱动程序。 
 	if (!DeleteService(hServiceDDK)) {
 		lastErr = GetLastError();
 		if (lastErr == ERROR_SERVICE_MARKED_FOR_DELETE) 
-			MessageBox(NULL, L"驱动已卸载并删除，请不要重复操作", L"JiYuTrainer - 提示", MB_ICONEXCLAMATION);
+			MessageBox(NULL, L"驱动已卸载并删除，请不要重复操作", L"LtsTrainer - 提示", MB_ICONEXCLAMATION);
 		else {
 			FAST_STR_BINDER(str, L"卸载驱动错误，删除驱动错误：%s", 128, SysHlp::ConvertErrorCodeToString(lastErr));
-			MessageBox(NULL, str, L"JiYuTrainer - 错误", MB_ICONERROR);
+			MessageBox(NULL, str, L"LtsTrainer - 错误", MB_ICONERROR);
 			bRet = FALSE;
 		}
 	}

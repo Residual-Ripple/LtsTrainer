@@ -9,7 +9,7 @@
 extern int screenWidth, screenHeight;
 extern MainWindow *currentMainWindow;
 
-UpdaterWindow::UpdaterWindow(HWND parentHWnd) : CommonWindow(parentHWnd, 430, 220, L"sciter-jytrainer-update-window", L"JiYu Trainer Update Window", IDR_HTML_UPDATER)
+UpdaterWindow::UpdaterWindow(HWND parentHWnd) : CommonWindow(parentHWnd, 430, 220, L"sciter-jytrainer-update-window", L"LtsTrainer Update Window", IDR_HTML_UPDATER)
 {
 	init();
 	Show();
@@ -117,12 +117,12 @@ void UpdaterWindow::OnUpdateDownloadCallback(LPCWSTR precent, int status)
 {
 	if (status == UPDATE_STATUS_COULD_NOT_CONNECT) {
 		progress_text.set_text(L"更新下载失败！");
-		MessageBox(_hWnd, L"无法连接至更新服务器", L"JiYuTrainer - 更新错误", MB_ICONEXCLAMATION);
+		MessageBox(_hWnd, L"无法连接至更新服务器", L"LtsTrainer - 更新错误", MB_ICONEXCLAMATION);
 		SendMessage(_hWnd, WM_COMMAND, IDC_UPDATE_CLOSE, NULL);
 	}
 	else if (status == UPDATE_STATUS_COULD_NOT_CREATE_FILE) {
 		progress_text.set_text(L"更新安装失败！");
-		MessageBox(_hWnd, L"无法写入更新文件，您可以尝试使用管理员身份运行本程序", L"JiYuTrainer - 更新错误", MB_ICONEXCLAMATION);
+		MessageBox(_hWnd, L"无法写入更新文件，您可以尝试使用管理员身份运行本程序", L"LtsTrainer - 更新错误", MB_ICONEXCLAMATION);
 		SendMessage(_hWnd, WM_COMMAND, IDC_UPDATE_CLOSE, NULL);
 	}
 	else if (status == UPDATE_STATUS_DWONLAODING) {

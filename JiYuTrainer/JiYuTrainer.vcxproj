@@ -23,7 +23,7 @@
     <ProjectGuid>{3F13035C-4164-4E05-9B5E-BC4546D7E4F6}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>JiYuTrainer</RootNamespace>
-    <TargetName>lxtctrainer</TargetName>
+    <TargetName>LtsTrainer</TargetName>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -54,6 +54,10 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <IncludePath>$(SolutionDir)thirdparty\duilib\DuiLib;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)thirdparty\duilib\out\$(Configuration);$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="Shared">
@@ -73,14 +77,14 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <LibraryPath>$(SolutionDir)$(Configuration)\;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86)</LibraryPath>
+    <LibraryPath>$(SolutionDir)thirdparty\duilib\out\$(Configuration)\;$(SolutionDir)$(Configuration)\;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <LibraryPath>$(SolutionDir)$(Configuration)\;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86)</LibraryPath>
+    <LibraryPath>$(SolutionDir)thirdparty\duilib\out\$(Configuration)\;$(SolutionDir)$(Configuration)\;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -98,7 +102,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
-      <AdditionalDependencies>Ntdll.lib;Iphlpapi.lib;Mpr.lib;Ws2_32.lib;ComCtl32.lib;ws2_32.lib;Wininet.lib;wldap32.lib;JiYuTrainerUI.lib;JiYuTrainerUpdater.lib;Dbghelp.lib;Shlwapi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>DuiLib.lib;gdiplus.lib;imm32.lib;comctl32.lib;Ntdll.lib;Iphlpapi.lib;Mpr.lib;Ws2_32.lib;ComCtl32.lib;ws2_32.lib;Wininet.lib;wldap32.lib;JiYuTrainerUI.lib;JiYuTrainerUpdater.lib;Dbghelp.lib;Shlwapi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>
       </ModuleDefinitionFile>
     </Link>
@@ -139,7 +143,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
-      <AdditionalDependencies>Ntdll.lib;Iphlpapi.lib;Mpr.lib;Ws2_32.lib;ComCtl32.lib;ws2_32.lib;Wininet.lib;wldap32.lib;JiYuTrainerUI.lib;JiYuTrainerUpdater.lib;Dbghelp.lib;Shlwapi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>DuiLib.lib;gdiplus.lib;imm32.lib;comctl32.lib;Ntdll.lib;Iphlpapi.lib;Mpr.lib;Ws2_32.lib;ComCtl32.lib;ws2_32.lib;Wininet.lib;wldap32.lib;JiYuTrainerUI.lib;JiYuTrainerUpdater.lib;Dbghelp.lib;Shlwapi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>
       </ModuleDefinitionFile>
     </Link>
@@ -238,10 +242,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Debug\JiYuTrainerDriver.sys" />
-    <None Include="..\Debug\LxtcTrainerHooks.dll" />
+    <None Include="..\Debug\LtsTrainerHooks.dll" />
     <None Include="..\Debug\sciter.dll" />
     <None Include="..\Release\JiYuTrainerDriver.sys" />
-    <None Include="..\Release\LxtcTrainerHooks.dll" />
+    <None Include="..\Release\LtsTrainerHooks.dll" />
     <None Include="..\Release\sciter.dll" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

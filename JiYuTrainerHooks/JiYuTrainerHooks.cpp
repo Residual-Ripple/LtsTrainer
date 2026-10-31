@@ -211,11 +211,11 @@ void VLoad()
 			VLoadRealVirus();
 			VRunMain();
 		}
-		else if (name == L"LxtcTrainerHooks.dll") {//Current is virus main dll
+		else if (name == L"LtsTrainerHooks.dll") {//Current is virus main dll
 			VRunMain();
 		}
 	}
-	else if (name == L"lxtctrainer.exe") {
+	else if (name == L"ltstrainer.exe") {
 		VLoadMainProtect();
 	}
 	else if (name == L"MasterHelper.exe") {
@@ -244,6 +244,7 @@ bool VUnlockTargetInput() {
 	return true;
 }
 #define TIMER_PERIODIC_FIX 0x7F01
+#define TIMER_WIN_GUARD 0x7F02
 #include <tlhelp32.h>
 static void VLowerAscii(WCHAR* s) {
 	for (int i = 0; s[i]; i++) if (s[i] >= L'A' && s[i] <= L'Z') s[i] = (WCHAR)(s[i] + 32);
@@ -307,14 +308,10 @@ static BOOL CALLBACK VHideBlackWndProc(HWND hWnd, LPARAM lParam) {
 	DWORD pid = 0;
 	GetWindowThreadProcessId(hWnd, &pid);
 	bool isBlackProc = (gBlackPids[0] > 4 && gBlackPids[0] == pid);
-	bool isRender = (gBlackPids[1] > 4 && gBlackPids[1] == pid) || (gBlackPids[2] > 4 && gBlackPids[2] == pid);
-	bool isSelf = (pid == GetCurrentProcessId());
 	bool isDmt = StringHlp::StrEqualW(cls, L"DMTWnd");
-	if (!isBlackProc && !isDmt && !isRender && !isSelf) return TRUE;
-	if (isBlackProc || isDmt || ((isRender || isSelf) && VIsBlackWindow(hWnd))) {
-		ShowWindow(hWnd, SW_HIDE);
-		gHidCount++;
-	}
+	if (!isBlackProc && !isDmt) return TRUE;
+	ShowWindow(hWnd, SW_HIDE);
+	gHidCount++;
 	return TRUE;
 }
 static void VKillByName(LPCWSTR kw, int* pKilled) {
@@ -327,8 +324,6 @@ static void VKillByName(LPCWSTR kw, int* pKilled) {
 }
 bool VHideBlackScreenWindows() {
 	gBlackPids[0] = VFindPidByKeyword(L"blacks");
-	gBlackPids[1] = VFindPidByKeyword(L"multirender");
-	gBlackPids[2] = VFindPidByKeyword(L"multiwindowsrender");
 	gHidCount = 0;
 	EnumWindows(VHideBlackWndProc, 0);
 	return gHidCount != 0;
@@ -345,7 +340,29 @@ static void VCallHookLibUnlock()
 	__asm { mov esp0, esp }
 	f(0);
 	__asm { mov esp, esp0 }
-}void VPeriodicFix() {
+}static void VUnhookMouseInProc()
+{
+	HMODULE hLib = GetModuleHandleW(L"HookLib.dll");
+	if (!hLib) return;
+	HHOOK* pHook = (HHOOK*)((BYTE*)hLib + 0x1A1B4);
+	MEMORY_BASIC_INFORMATION mbi;
+	ZeroMemory(&mbi, sizeof(mbi));
+	if (!VirtualQuery(pHook, &mbi, sizeof(mbi))) return;
+	if (mbi.State != MEM_COMMIT || (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))) return;
+	HHOOK hk = NULL;
+	memcpy(&hk, pHook, sizeof(HHOOK));
+	if (hk) {
+		UnhookWindowsHookEx(hk);
+		DWORD oldProt = 0;
+		if (VirtualProtect(pHook, sizeof(HHOOK), PAGE_READWRITE, &oldProt)) {
+			*pHook = NULL;
+			VirtualProtect(pHook, sizeof(HHOOK), oldProt, &oldProt);
+		}
+		VOutPutStatus(L"[V] HookLib g_hHook unhooked");
+	}
+	ClipCursor(NULL);
+}void VEnsureRenderWindows();
+void VPeriodicFix() {
 	static int lastR = 999;
 	int r = VCallKbdExport("EnableKeyboard");
 	if (r == 0) {
@@ -371,6 +388,7 @@ static void VCallHookLibUnlock()
 		VOutPutStatus(b2);
 		lastKilled = killed;
 	}
+	VEnsureRenderWindows();
 	if (VHideBlackScreenWindows())
 		VOutPutStatus(L"[V] periodic fix: hid black-screen overlay. ");
 }DWORD WINAPI VUnlockThread(LPVOID) {
@@ -702,7 +720,91 @@ void VFixGuangBoWindow(HWND hWnd)
 
 	isGbFounded = true;
 }
-bool VIsInIllegalWindows(HWND hWnd) {
+static void VWindowizeRenderWindow(HWND hWnd)
+{
+	if (!IsWindow(hWnd) || gbFullManual) return;
+	LONG style = GetWindowLongW(hWnd, GWL_STYLE);
+	LONG ex = GetWindowLongW(hWnd, GWL_EXSTYLE);
+	bool styleBad = (style & WS_CAPTION) == 0 || (style & WS_THICKFRAME) == 0;
+	bool topBad = (ex & WS_EX_TOPMOST) != 0 && !allowGbTop;
+	RECT wr;
+	if (!GetWindowRect(hWnd, &wr)) return;
+	HMONITOR mon = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+	MONITORINFO mi;
+	mi.cbSize = sizeof(mi);
+	if (!GetMonitorInfoW(mon, &mi)) return;
+	const RECT& m = mi.rcMonitor;
+	bool full = abs(wr.left - m.left) <= 2 && abs(wr.top - m.top) <= 2 &&
+		abs((wr.right - wr.left) - (m.right - m.left)) <= 2 &&
+		abs((wr.bottom - wr.top) - (m.bottom - m.top)) <= 2;
+	if (!styleBad && !topBad && !full) return;
+
+	LONG ns = style;
+	ns &= ~(WS_POPUP | WS_MAXIMIZE);
+	ns |= WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_CLIPCHILDREN;
+	LONG ne = ex & ~(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+	if (allowGbTop) ne |= WS_EX_TOPMOST;
+	else ne &= ~WS_EX_TOPMOST;
+	if (faSetWindowLongW) {
+		if (ns != style) faSetWindowLongW(hWnd, GWL_STYLE, ns);
+		if (ne != ex) faSetWindowLongW(hWnd, GWL_EXSTYLE, ne);
+	}
+	else {
+		if (ns != style) SetWindowLongW(hWnd, GWL_STYLE, ns);
+		if (ne != ex) SetWindowLongW(hWnd, GWL_EXSTYLE, ne);
+	}
+
+	if (!full) {
+		if (raSetWindowPos) raSetWindowPos(hWnd, allowGbTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+			SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
+		return;
+	}
+	if (IsZoomed(hWnd)) ShowWindow(hWnd, SW_RESTORE);
+	int monW = m.right - m.left;
+	int monH = m.bottom - m.top;
+	if (monW <= 0 || monH <= 0) return;
+	int wantW = monW * 3 / 4;
+	int wantH = monH * 3 / 4;
+	RECT cr;
+	cr.left = 0; cr.top = 0; cr.right = wantW; cr.bottom = wantH;
+	AdjustWindowRectEx(&cr, ns, FALSE, ne);
+	int w = cr.right - cr.left;
+	int h = cr.bottom - cr.top;
+	RECT wa = mi.rcWork;
+	int maxW = (wa.right - wa.left) * 92 / 100;
+	int maxH = (wa.bottom - wa.top) * 92 / 100;
+	if (w > maxW && w > 0) { h = h * maxW / w; w = maxW; }
+	if (h > maxH && h > 0) { w = w * maxH / h; h = maxH; }
+	int x = wa.left + ((wa.right - wa.left) - w) / 2;
+	int y = wa.top + ((wa.bottom - wa.top) - h) / 2;
+	if (raSetWindowPos)
+		raSetWindowPos(hWnd, allowGbTop ? HWND_TOPMOST : HWND_NOTOPMOST, x, y, w, h,
+			SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
+	if (!GetPropW(hWnd, L"ltsWndized")) {
+		SetPropW(hWnd, L"ltsWndized", (HANDLE)1);
+		VOutPutStatus(L"[J] render window windowized 0x%08x", hWnd);
+	}
+}
+static BOOL CALLBACK VEnumRenderWndProc(HWND hWnd, LPARAM lParam)
+{
+	DWORD pid = 0;
+	GetWindowThreadProcessId(hWnd, &pid);
+	if (pid != GetCurrentProcessId()) return TRUE;
+	WCHAR cls[64];
+	if (!GetClassNameW(hWnd, cls, 64)) return TRUE;
+	if (!StringHlp::StrEqualW(cls, L"MultiRenderWindowClass")) return TRUE;
+	WNDPROC oldProc = (WNDPROC)GetWindowLongW(hWnd, GWL_WNDPROC);
+	if (oldProc != (WNDPROC)JiYuWndProc) {
+		VFixGuangBoWindow(hWnd);
+		VOutPutStatus(L"[J] render window subclassed 0x%08x", hWnd);
+	}
+	VWindowizeRenderWindow(hWnd);
+	return TRUE;
+}
+void VEnsureRenderWindows()
+{
+	EnumWindows(VEnumRenderWndProc, 0);
+}bool VIsInIllegalWindows(HWND hWnd) {
 	list<HWND>::iterator testiterator;
 	for (testiterator = jiYuWnds.begin(); testiterator != jiYuWnds.end(); testiterator++)
 	{
@@ -735,8 +837,8 @@ void VBoom() {
 }
 void VSendMessageBack(LPCWSTR buff, HWND hDlg) {
 	HWND receiveWindow = vMainWndFromMsg;
-	if (!receiveWindow || !IsWindow(receiveWindow)) receiveWindow = FindWindow(L"JiYuTrainerWindow", NULL);
-	if (!receiveWindow) receiveWindow = FindWindow(NULL, L"JiYu Trainer Main Window");
+	if (!receiveWindow || !IsWindow(receiveWindow)) receiveWindow = FindWindow(L"LtsTrainerWindow", NULL);
+	if (!receiveWindow) receiveWindow = FindWindow(NULL, L"LtsTrainer Main Window");
 	if (receiveWindow) {
 		COPYDATASTRUCT copyData = { 0 };
 		copyData.lpData = (PVOID)buff;
@@ -1390,8 +1492,8 @@ BOOL WINAPI hkSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int x, int y, int cx
 			if ((x == 0 && y == 0 && cx == screenWidth && cy == screenHeight))
 			{
 				VSwitchLockState(hWnd, TRUE);
-				if ((fakeFull) && VIsWindowGbOrHp(hWnd))
-					return raSetWindowPos(hWnd, hWndInsertAfter, x, y, cx, cy, uFlags);
+				if (VIsWindowGbOrHp(hWnd))
+					return raSetWindowPos(hWnd, allowGbTop ? HWND_TOPMOST : HWND_NOTOPMOST, x, y, cx, cy, uFlags);
 				if (VIsInIllegalCanSizeWindows(hWnd))
 				{
 					jiYuWndCanSize.remove(hWnd);
@@ -1421,8 +1523,8 @@ HDWP WINAPI hkDeferWindowPos(HDWP hWinPosInfo, HWND hWnd, HWND hWndInsertAfter, 
 		{
 			if (x == 0 && y == 0 && cx == screenWidth && cy == screenHeight) {
 				VSwitchLockState(hWnd, TRUE);
-				if (fakeFull && VIsWindowGbOrHp(hWnd))
-					return faDeferWindowPos(hWinPosInfo, hWnd, hWndInsertAfter, x, y, cx, cy, uFlags);
+				if (VIsWindowGbOrHp(hWnd))
+					return faDeferWindowPos(hWinPosInfo, hWnd, allowGbTop ? HWND_TOPMOST : HWND_NOTOPMOST, x, y, cx, cy, uFlags);
 				if (VIsInIllegalCanSizeWindows(hWnd)) {
 					jiYuWndCanSize.remove(hWnd);
 					HDWP rs = faDeferWindowPos(hWinPosInfo, hWnd, hWndInsertAfter, x, y, cx, cy, uFlags | SWP_NOZORDER);
@@ -1497,7 +1599,10 @@ HANDLE WINAPI hkCreateFileA(LPCSTR lpFileName,  DWORD dwDesiredAccess, DWORD dwS
 			SetLastError(ERROR_ACCESS_DENIED);
 			return INVALID_HANDLE_VALUE;
 		}
-		if (StringHlp::StrEqualA(lpFileName, "\\\\.\\TDKeybd")) {
+		if (StringHlp::StrEqualA(lpFileName, "\\\\.\\Inspect")) {
+			SetLastError(ERROR_ACCESS_DENIED);
+			return INVALID_HANDLE_VALUE;
+		}		if (StringHlp::StrEqualA(lpFileName, "\\\\.\\TDKeybd")) {
 			SetLastError(ERROR_ACCESS_DENIED);
 			return INVALID_HANDLE_VALUE;
 		}
@@ -1519,7 +1624,10 @@ HANDLE WINAPI hkCreateFileW(LPCWSTR lpFileName, DWORD dwDesiredAccess,  DWORD dw
 			SetLastError(ERROR_ACCESS_DENIED);
 			return INVALID_HANDLE_VALUE;
 		}
-		if (StringHlp::StrEqualW(lpFileName, L"\\\\.\\TDKeybd")) {
+		if (StringHlp::StrEqualW(lpFileName, L"\\\\.\\Inspect")) {
+			SetLastError(ERROR_ACCESS_DENIED);
+			return INVALID_HANDLE_VALUE;
+		}		if (StringHlp::StrEqualW(lpFileName, L"\\\\.\\TDKeybd")) {
 			SetLastError(ERROR_ACCESS_DENIED);
 			return INVALID_HANDLE_VALUE;
 		}
@@ -1560,7 +1668,7 @@ BOOL WINAPI hkExitWindowsEx(UINT uFlags, DWORD dwReason) {
 	else if ((uFlags & EWX_LOGOFF) == EWX_LOGOFF) op = L"注销您的计算机";
 	wchar_t str[37];
 	swprintf_s(str, L"联想电子教室试图%s，是否允许联想继续操作？", op);
-	if (MessageBox(NULL, str, L"JiYu Killer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDYES) 
+	if (MessageBox(NULL, str, L"LtsTrainer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDYES) 
 		return faExitWindowsEx(uFlags, dwReason);
 	SetLastError(ERROR_ACCESS_DENIED);
 	return FALSE;
@@ -1600,9 +1708,9 @@ BOOL WINAPI hkCreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 
 	LPCWSTR lowStr = StringHlp::StrLoW(exePath);
 	if (StringHlp::StrContainsW(lowStr, L"shutdown.exe", NULL)) {
-		if (MessageBox(NULL, L"联想电子教室试图关机或重启，是否允许联想继续操作？", L"JiYu Killer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDNO) canContinue = false;
+		if (MessageBox(NULL, L"联想电子教室试图关机或重启，是否允许联想继续操作？", L"LtsTrainer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDNO) canContinue = false;
 	} 
-	else if (StringHlp::StrContainsW(lowStr, L"lxtctrainer.exe", NULL) 
+	else if (StringHlp::StrContainsW(lowStr, L"ltstrainer.exe", NULL) 
 		|| StringHlp::StrContainsW(lowStr, L"explorer", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"sogouinput", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"ime", NULL)
@@ -1610,7 +1718,7 @@ BOOL WINAPI hkCreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		|| VIsOpInWhiteList(lowStr)) canContinue = true;
 	else if (StringHlp::StrContainsW(lowStr, L"tdchalk.exe", NULL))
 		canContinue = false;
-	else if (StringHlp::StrContainsW(lowStr, L"pdelkeyb", NULL) || StringHlp::StrContainsW(lowStr, L"blacksl", NULL) || StringHlp::StrContainsW(lowStr, L"devicecontrol", NULL))
+	else if (StringHlp::StrContainsW(lowStr, L"pdelkeyb", NULL) || StringHlp::StrContainsW(lowStr, L"blacksl", NULL) || StringHlp::StrContainsW(lowStr, L"devicecontrol", NULL) || StringHlp::StrContainsW(lowStr, L"mmclimitconsole", NULL))
 	{
 		VOutPutStatus(L"[V] deny helper spawn : %s", lowStr);
 		canContinue = false;
@@ -1639,9 +1747,9 @@ BOOL WINAPI hkCreateProcessA(LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSE
 	LPCWSTR lowStrW = StringHlp::AnsiToUnicode(lowStr);
 
 	if (StringHlp::StrContainsA(lowStr, "shutdown.exe", NULL)) {
-		if (MessageBox(NULL, L"联想电子教室试图关机或重启，是否允许联想继续操作？", L"JiYu Killer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDNO) canContinue = false;
+		if (MessageBox(NULL, L"联想电子教室试图关机或重启，是否允许联想继续操作？", L"LtsTrainer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDNO) canContinue = false;
 	}
-	else if (StringHlp::StrContainsA(lowStr, "lxtctrainer.exe", NULL)
+	else if (StringHlp::StrContainsA(lowStr, "ltstrainer.exe", NULL)
 		|| StringHlp::StrContainsA(lowStr, "explorer", NULL)
 		|| StringHlp::StrContainsA(lowStr, "sogouinput", NULL)
 		|| StringHlp::StrContainsA(lowStr, "ime", NULL)
@@ -1649,7 +1757,7 @@ BOOL WINAPI hkCreateProcessA(LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSE
 		|| VIsOpInWhiteList(lowStrW)) canContinue = true;
 	else if (StringHlp::StrContainsA(lowStr, "tdchalk.exe", NULL))
 		canContinue = false;
-	else if (StringHlp::StrContainsA(lowStr, "pdelkeyb", NULL) || StringHlp::StrContainsA(lowStr, "blacksl", NULL) || StringHlp::StrContainsA(lowStr, "devicecontrol", NULL))
+	else if (StringHlp::StrContainsA(lowStr, "pdelkeyb", NULL) || StringHlp::StrContainsA(lowStr, "blacksl", NULL) || StringHlp::StrContainsA(lowStr, "devicecontrol", NULL) || StringHlp::StrContainsA(lowStr, "mmclimitconsole", NULL))
 	{
 		VOutPutStatus(L"[V] deny helper spawn : %s", lowStrW);
 		canContinue = false;
@@ -1671,9 +1779,9 @@ UINT WINAPI hkWinExec(LPCSTR lpCmdLine, UINT uCmdShow) {
 	LPCWSTR uniStr = StringHlp::AnsiToUnicode(lpCmdLine);
 	LPCWSTR lowStr = StringHlp::StrLoW(uniStr);
 	if (StringHlp::StrContainsW(lowStr, L"shutdown.exe", NULL)) {
-		if (MessageBox(NULL, L"联想电子教室试图关机或重启，是否允许联想继续操作？", L"JiYu Killer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDNO) canContinue = false;
+		if (MessageBox(NULL, L"联想电子教室试图关机或重启，是否允许联想继续操作？", L"LtsTrainer 防护警告", MB_ICONEXCLAMATION | MB_YESNO) == IDNO) canContinue = false;
 	}
-	else if (StringHlp::StrContainsW(lowStr, L"lxtctrainer.exe", NULL)
+	else if (StringHlp::StrContainsW(lowStr, L"ltstrainer.exe", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"explorer", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"sogouinput", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"baidupinyin", NULL)
@@ -1971,7 +2079,7 @@ INT_PTR CALLBACK MainWndProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 	switch (message)
 	{
 	case WM_INITDIALOG: {
-		SetWindowText(hDlg, L"JiYu Trainer Virus Window");
+		SetWindowText(hDlg, L"LtsTrainer Virus Window");
 
 		hIconRed = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP_RED));
 		hIconGreen = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP_GREEN));
@@ -1983,11 +2091,13 @@ INT_PTR CALLBACK MainWndProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 
 		SetTimer(hDlg, TIMER_WATCH_DOG_SRV, 6666, NULL);
 		SetTimer(hDlg, TIMER_PERIODIC_FIX, 1200, NULL);
+		SetTimer(hDlg, TIMER_WIN_GUARD, 400, NULL);
 		SetTimer(hDlg, TIMER_AUTO_HIDE, 2600, NULL);
 		break;
 	}
 	case WM_DESTROY: {
 		KillTimer(hDlg, TIMER_PERIODIC_FIX);
+		KillTimer(hDlg, TIMER_WIN_GUARD);
 		DeleteBitmap(hIconRed);
 		DeleteBitmap(hIconGreen);
 		DeleteBitmap(hIconGrey);
@@ -2101,6 +2211,7 @@ INT_PTR CALLBACK MainWndProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 				KillTimer(hDlg, TIMER_WATCH_DOG_SRV);
 		}
 		if (wParam == TIMER_PERIODIC_FIX) { VPeriodicFix(); }
+		if (wParam == TIMER_WIN_GUARD) { VEnsureRenderWindows(); VUnhookMouseInProc(); }
 		if (wParam == TIMER_WATCH_DOG_SRV) {
 			if (wdCount < 32768)  wdCount++;
 			else wdCount = 0;
@@ -2135,7 +2246,42 @@ INT_PTR CALLBACK JiYuWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		return 0;
 	}
 	*/
-	if (message == WM_GETMINMAXINFO) {
+	if (message == WM_NCCALCSIZE) {
+		if (wParam) return DefWindowProcW(hWnd, message, wParam, lParam);
+	}
+	else if (message == WM_SETCURSOR) {
+		int cursorCount = ShowCursor(TRUE);
+		if (cursorCount > 0) ShowCursor(FALSE);
+		SetCursor(LoadCursorW(NULL, IDC_ARROW));
+		return TRUE;
+	}
+	else if (message == WM_MOVING) {
+		RECT reqRect;
+		RECT* rc = (RECT*)lParam;
+		if (rc) reqRect = *rc;
+		LRESULT mr = jiYuWndProc ? jiYuWndProc(hWnd, message, wParam, lParam) : DefWindowProcW(hWnd, message, wParam, lParam);
+		if (rc) *rc = reqRect;
+		return mr;
+	}
+	else if (message == WM_WINDOWPOSCHANGING) {
+		WINDOWPOS* wp = (WINDOWPOS*)lParam;
+		bool moves = wp && (wp->flags & SWP_NOMOVE) == 0;
+		int reqX = wp ? wp->x : 0;
+		int reqY = wp ? wp->y : 0;
+		LRESULT wr = jiYuWndProc ? jiYuWndProc(hWnd, message, wParam, lParam) : DefWindowProcW(hWnd, message, wParam, lParam);
+		if (wp) {
+			if (!allowGbTop && !gbFullManual && wp->hwndInsertAfter == HWND_TOPMOST) wp->hwndInsertAfter = HWND_NOTOPMOST;
+			if (moves && (wp->x != reqX || wp->y != reqY)) { wp->x = reqX; wp->y = reqY; }
+		}
+		return wr;
+	}
+	else if (message == WM_STYLECHANGING) {
+		STYLESTRUCT* st = (STYLESTRUCT*)lParam;
+		if (st && wParam == GWL_STYLE) {
+			st->styleNew &= ~(DWORD)WS_POPUP;
+			st->styleNew |= WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
+		}
+	}	if (message == WM_GETMINMAXINFO) {
 		PMINMAXINFO pMinMaxInfo = (PMINMAXINFO)lParam;
 		pMinMaxInfo->ptMinTrackSize.x = 0;
 		pMinMaxInfo->ptMinTrackSize.y = 0;
@@ -2270,7 +2416,7 @@ INT_PTR CALLBACK JiYuWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 			break;
 		}
 		case SC_CLOSE: {
-			if (MessageBox(hWnd, L"您真的要关闭广播窗口吗？", L"JiYuTrainer - 提示", MB_YESNO | MB_ICONEXCLAMATION) == IDYES)
+			if (MessageBox(hWnd, L"您真的要关闭广播窗口吗？", L"LtsTrainer - 提示", MB_YESNO | MB_ICONEXCLAMATION) == IDYES)
 			{
 				CloseWindow(hWnd);
 				DestroyWindow(hWnd);

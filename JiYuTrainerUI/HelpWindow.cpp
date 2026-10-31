@@ -6,7 +6,7 @@
 extern int screenWidth, screenHeight;
 
 HelpWindow::HelpWindow(HWND parentHWnd) : 
-	CommonWindow(parentHWnd, 620, 600, L"JiYuTrainerHelpWindow", L"JiYu Trainer Help Window", IDR_HTML_ABOUT) {
+	CommonWindow(parentHWnd, 620, 600, L"JiYuTrainerHelpWindow", L"LtsTrainer Help Window", IDR_HTML_ABOUT) {
 	setup_callback();
 	init();
 	Show();
