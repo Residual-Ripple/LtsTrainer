@@ -46,7 +46,7 @@ LtsTrainer.exe -bugreport     生成问题反馈信息
 | --- | --- |
 | `JiYuTrainer` | 主程序：目标定位、注入、窗口与进程处理 |
 | `JiYuTrainerHooks` | 注入模块：在目标进程内做窗口接管与解锁 |
-| `JiYuTrainerUI` | 界面（Sciter） |
+| `JiYuTrainerUI` | 界面 |
 | `JiYuTrainerUpdater` | 更新器（上游遗留，默认不启用） |
 | `JiYuTrainerDriver` | 旧版内核驱动，仅 32 位系统可用，非必需 |
 
