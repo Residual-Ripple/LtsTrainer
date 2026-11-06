@@ -340,7 +340,41 @@ static void VCallHookLibUnlock()
 	__asm { mov esp0, esp }
 	f(0);
 	__asm { mov esp, esp0 }
-}static void VUnhookMouseInProc()
+}typedef LONG(NTAPI* fnNtQIT)(HANDLE, ULONG, PVOID, ULONG, PULONG);
+static void VQuitHookLibThreads()
+{
+	HMODULE hLib = GetModuleHandleW(L"HookLib.dll");
+	if (!hLib) return;
+	DWORD_PTR base = (DWORD_PTR)hLib;
+	MEMORY_BASIC_INFORMATION mbi;
+	ZeroMemory(&mbi, sizeof(mbi));
+	if (!VirtualQuery(hLib, &mbi, sizeof(mbi))) return;
+	DWORD_PTR end = base + (DWORD_PTR)mbi.RegionSize;
+	fnNtQIT pNt = (fnNtQIT)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationThread");
+	if (!pNt) return;
+	HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+	if (snap == INVALID_HANDLE_VALUE) return;
+	THREADENTRY32 te;
+	te.dwSize = sizeof(te);
+	if (Thread32First(snap, &te)) {
+		do {
+			if (te.th32OwnerProcessID != GetCurrentProcessId()) continue;
+			HANDLE h = OpenThread(THREAD_QUERY_INFORMATION, FALSE, te.th32ThreadID);
+			if (!h) h = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, te.th32ThreadID);
+			if (!h) continue;
+			ULONG_PTR addr = 0;
+			ULONG ret = 0;
+			LONG st = pNt(h, 9, &addr, sizeof(addr), &ret);
+			CloseHandle(h);
+			if (st >= 0 && addr >= base && addr < end) {
+				PostThreadMessageW(te.th32ThreadID, WM_QUIT, 0, 0);
+				VOutPutStatus(L"[V] HookLib lock thread quit requested");
+			}
+		} while (Thread32Next(snap, &te));
+	}
+	CloseHandle(snap);
+}
+static void VUnhookMouseInProc()
 {
 	HMODULE hLib = GetModuleHandleW(L"HookLib.dll");
 	if (!hLib) return;
@@ -388,6 +422,8 @@ void VPeriodicFix() {
 		VOutPutStatus(b2);
 		lastKilled = killed;
 	}
+	VUnhookMouseInProc();
+	VQuitHookLibThreads();
 	VEnsureRenderWindows();
 	if (VHideBlackScreenWindows())
 		VOutPutStatus(L"[V] periodic fix: hid black-screen overlay. ");
@@ -725,7 +761,7 @@ static void VWindowizeRenderWindow(HWND hWnd)
 	if (!IsWindow(hWnd) || gbFullManual) return;
 	LONG style = GetWindowLongW(hWnd, GWL_STYLE);
 	LONG ex = GetWindowLongW(hWnd, GWL_EXSTYLE);
-	bool styleBad = (style & WS_CAPTION) == 0 || (style & WS_THICKFRAME) == 0;
+	bool styleBad = (style & WS_CAPTION) == 0 || (style & WS_THICKFRAME) == 0 || (style & WS_CHILD) != 0;
 	bool topBad = (ex & WS_EX_TOPMOST) != 0 && !allowGbTop;
 	RECT wr;
 	if (!GetWindowRect(hWnd, &wr)) return;
@@ -739,8 +775,9 @@ static void VWindowizeRenderWindow(HWND hWnd)
 		abs((wr.bottom - wr.top) - (m.bottom - m.top)) <= 2;
 	if (!styleBad && !topBad && !full) return;
 
+	if (GetParent(hWnd)) SetParent(hWnd, NULL);
 	LONG ns = style;
-	ns &= ~(WS_POPUP | WS_MAXIMIZE);
+	ns &= ~(WS_POPUP | WS_CHILD | WS_MAXIMIZE);
 	ns |= WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_CLIPCHILDREN;
 	LONG ne = ex & ~(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
 	if (allowGbTop) ne |= WS_EX_TOPMOST;
@@ -835,6 +872,64 @@ void VBoom() {
 	*P = 0;
 	*/
 }
+static bool VIsVendorProcess(LPCWSTR lowStr)
+{
+	if (!lowStr) return false;
+	static const WCHAR* kVendor[] = {
+		L"multirender.exe", L"multiwindowsrender.exe", L"multi.exe",
+		L"screensender.exe", L"audiorender.exe", L"audiosender.exe",
+		L"filetransferclient.exe", L"screenpen.exe", L"screenrecord.exe",
+		L"shareddesktop.exe", L"audioorvideobroadcast.exe", L"videomultistream.exe",
+		L"mmcftpserver.exe", L"student.exe", L"processprotect.exe",
+		L"loader.exe", L"startup.exe", nullptr
+	};
+	for (int i = 0; kVendor[i]; i++) {
+		if (StringHlp::StrContainsW(lowStr, kVendor[i], NULL)) return true;
+	}
+	return false;
+}
+static bool VLaunchMainProgram()
+{
+	WCHAR dllPath[MAX_PATH];
+	if (!GetModuleFileNameW(hInst, dllPath, MAX_PATH)) return false;
+	WCHAR dirPath[MAX_PATH];
+	wcscpy_s(dirPath, MAX_PATH, dllPath);
+	PathRemoveFileSpec(dirPath);
+	WCHAR exePath[MAX_PATH];
+	wcscpy_s(exePath, MAX_PATH, dirPath);
+	PathAppendW(exePath, L"LtsTrainer.exe");
+	if (_waccess_s(exePath, 0) != 0) {
+		if (!StrEmepty(mainFullPath) && _waccess_s(mainFullPath, 0) == 0)
+			wcscpy_s(exePath, MAX_PATH, mainFullPath);
+		else
+			return false;
+	}
+	for (int i = 0; i < 3; i++) {
+		STARTUPINFOW si;
+		PROCESS_INFORMATION pi;
+		ZeroMemory(&si, sizeof(si));
+		ZeroMemory(&pi, sizeof(pi));
+		si.cb = sizeof(si);
+		WCHAR cmd[MAX_PATH * 2];
+		swprintf_s(cmd, MAX_PATH * 2, L"\"%s\"", exePath);
+		if (CreateProcessW(NULL, cmd, NULL, NULL, FALSE, 0, NULL, dirPath, &si, &pi)) {
+			CloseHandle(pi.hThread);
+			CloseHandle(pi.hProcess);
+			return true;
+		}
+		SHELLEXECUTEINFOW sei;
+		ZeroMemory(&sei, sizeof(sei));
+		sei.cbSize = sizeof(sei);
+		sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI;
+		sei.lpVerb = L"runas";
+		sei.lpFile = exePath;
+		sei.lpDirectory = dirPath;
+		sei.nShow = SW_SHOWNORMAL;
+		if (ShellExecuteExW(&sei)) { if (sei.hProcess) CloseHandle(sei.hProcess); return true; }
+		Sleep(600);
+	}
+	return false;
+}
 void VSendMessageBack(LPCWSTR buff, HWND hDlg) {
 	HWND receiveWindow = vMainWndFromMsg;
 	if (!receiveWindow || !IsWindow(receiveWindow)) receiveWindow = FindWindow(L"LtsTrainerWindow", NULL);
@@ -852,7 +947,7 @@ void VSendMessageBack(LPCWSTR buff, HWND hDlg) {
 		outlineEndJiy = true;
 		if (forceKill) {
 			if (_waccess_s(mainFullPath, 0) == 0)
-				ShellExecute(hWndMsgCenter, L"open", mainFullPath, L"-r2", NULL, SW_NORMAL);
+				VLaunchMainProgram();
 			VBoom();
 		}
 		else {
@@ -865,7 +960,7 @@ void VSendMessageBack(LPCWSTR buff, HWND hDlg) {
 			{
 				outlineEndJiy = false;
 				if (_waccess_s(mainFullPath, 0) == 0)
-					ShellExecute(hWndMsgCenter, L"open", mainFullPath, L"-r3", NULL, SW_NORMAL);
+					VLaunchMainProgram();
 			}
 		}
 	}
@@ -1485,6 +1580,8 @@ BOOL WINAPI hkSetForegroundWindow(HWND hWnd)
 }
 BOOL WINAPI hkSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int x, int y, int cx, int cy, UINT uFlags)
 {
+	if (loaded && VIsWindowGbOrHp(hWnd) && !allowGbTop && hWndInsertAfter == HWND_TOPMOST)
+		hWndInsertAfter = HWND_NOTOPMOST;
 	if (loaded) 
 	{
 		if ((uFlags & SWP_NOSIZE) == 0)
@@ -1492,8 +1589,10 @@ BOOL WINAPI hkSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int x, int y, int cx
 			if ((x == 0 && y == 0 && cx == screenWidth && cy == screenHeight))
 			{
 				VSwitchLockState(hWnd, TRUE);
-				if (VIsWindowGbOrHp(hWnd))
+				if (VIsWindowGbOrHp(hWnd)) {
+					if (!gbFullManual && GetPropW(hWnd, L"ltsWndized")) return TRUE;
 					return raSetWindowPos(hWnd, allowGbTop ? HWND_TOPMOST : HWND_NOTOPMOST, x, y, cx, cy, uFlags);
+				}
 				if (VIsInIllegalCanSizeWindows(hWnd))
 				{
 					jiYuWndCanSize.remove(hWnd);
@@ -1523,8 +1622,10 @@ HDWP WINAPI hkDeferWindowPos(HDWP hWinPosInfo, HWND hWnd, HWND hWndInsertAfter, 
 		{
 			if (x == 0 && y == 0 && cx == screenWidth && cy == screenHeight) {
 				VSwitchLockState(hWnd, TRUE);
-				if (VIsWindowGbOrHp(hWnd))
+				if (VIsWindowGbOrHp(hWnd)) {
+					if (!gbFullManual && GetPropW(hWnd, L"ltsWndized")) return hWinPosInfo;
 					return faDeferWindowPos(hWinPosInfo, hWnd, allowGbTop ? HWND_TOPMOST : HWND_NOTOPMOST, x, y, cx, cy, uFlags);
+				}
 				if (VIsInIllegalCanSizeWindows(hWnd)) {
 					jiYuWndCanSize.remove(hWnd);
 					HDWP rs = faDeferWindowPos(hWinPosInfo, hWnd, hWndInsertAfter, x, y, cx, cy, uFlags | SWP_NOZORDER);
@@ -1553,8 +1654,10 @@ BOOL WINAPI hkMoveWindow(HWND hWnd, int x, int y, int cx, int cy, BOOL bRepaint)
 	{
 		if (x == 0 && y == 0 && cx == screenWidth && cy == screenHeight) {
 			VSwitchLockState(hWnd, TRUE);
-			if (fakeFull && VIsWindowGbOrHp(hWnd))
+			if (VIsWindowGbOrHp(hWnd)) {
+				if (!gbFullManual && GetPropW(hWnd, L"ltsWndized")) return TRUE;
 				return raMoveWindow(hWnd, x, y, cx, cy, bRepaint);
+			}
 			if (VIsInIllegalCanSizeWindows(hWnd)) {
 				jiYuWndCanSize.remove(hWnd);
 				return raMoveWindow(hWnd,  x, y, cx, cy, bRepaint);
@@ -1715,7 +1818,7 @@ BOOL WINAPI hkCreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		|| StringHlp::StrContainsW(lowStr, L"sogouinput", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"ime", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"baidupinyin", NULL)
-		|| VIsOpInWhiteList(lowStr)) canContinue = true;
+		|| VIsOpInWhiteList(lowStr) || VIsVendorProcess(lowStr)) canContinue = true;
 	else if (StringHlp::StrContainsW(lowStr, L"tdchalk.exe", NULL))
 		canContinue = false;
 	else if (StringHlp::StrContainsW(lowStr, L"pdelkeyb", NULL) || StringHlp::StrContainsW(lowStr, L"blacksl", NULL) || StringHlp::StrContainsW(lowStr, L"devicecontrol", NULL) || StringHlp::StrContainsW(lowStr, L"mmclimitconsole", NULL))
@@ -1754,7 +1857,7 @@ BOOL WINAPI hkCreateProcessA(LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSE
 		|| StringHlp::StrContainsA(lowStr, "sogouinput", NULL)
 		|| StringHlp::StrContainsA(lowStr, "ime", NULL)
 		|| StringHlp::StrContainsA(lowStr, "baidupinyin", NULL)
-		|| VIsOpInWhiteList(lowStrW)) canContinue = true;
+		|| VIsOpInWhiteList(lowStrW) || VIsVendorProcess(lowStrW)) canContinue = true;
 	else if (StringHlp::StrContainsA(lowStr, "tdchalk.exe", NULL))
 		canContinue = false;
 	else if (StringHlp::StrContainsA(lowStr, "pdelkeyb", NULL) || StringHlp::StrContainsA(lowStr, "blacksl", NULL) || StringHlp::StrContainsA(lowStr, "devicecontrol", NULL) || StringHlp::StrContainsA(lowStr, "mmclimitconsole", NULL))
@@ -1786,7 +1889,7 @@ UINT WINAPI hkWinExec(LPCSTR lpCmdLine, UINT uCmdShow) {
 		|| StringHlp::StrContainsW(lowStr, L"sogouinput", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"baidupinyin", NULL)
 		|| StringHlp::StrContainsW(lowStr, L"ime", NULL)
-		|| VIsOpInWhiteList(lowStr)) canContinue = true;
+		|| VIsOpInWhiteList(lowStr) || VIsVendorProcess(lowStr)) canContinue = true;
 	else if (StringHlp::StrContainsW(lowStr, L"tdchalk.exe", NULL)) canContinue = false;
 	else if (bandAllRunOp || !VShowOpConfirmDialog(uniStr, L"")) canContinue = false;
 
@@ -2278,8 +2381,12 @@ INT_PTR CALLBACK JiYuWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	else if (message == WM_STYLECHANGING) {
 		STYLESTRUCT* st = (STYLESTRUCT*)lParam;
 		if (st && wParam == GWL_STYLE) {
-			st->styleNew &= ~(DWORD)WS_POPUP;
+			st->styleNew &= ~(DWORD)(WS_POPUP | WS_CHILD);
 			st->styleNew |= WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
+		}
+		else if (st && wParam == GWL_EXSTYLE) {
+			st->styleNew &= ~(DWORD)WS_EX_TOOLWINDOW;
+			if (!allowGbTop) st->styleNew &= ~(DWORD)WS_EX_TOPMOST;
 		}
 	}	if (message == WM_GETMINMAXINFO) {
 		PMINMAXINFO pMinMaxInfo = (PMINMAXINFO)lParam;

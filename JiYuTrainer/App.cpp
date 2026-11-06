@@ -17,6 +17,7 @@
 #include <winioctl.h>
 #include <CommCtrl.h>
 #include <ShellAPI.h>
+#include <aclapi.h>
 #include <dbghelp.h>
 #include <locale>
 #include "../JiYuTrainerUI/MainWindow.h"
@@ -443,7 +444,34 @@ static bool AppCommandLineHasArg(LPCWSTR cmdLine, LPCWSTR arg)
 	}
 	return false;
 }
-bool AppEnsureElevated()
+static void AppProtectSelf()
+{
+	HANDLE hProc = GetCurrentProcess();
+	PACL pOldAcl = NULL;
+	PSECURITY_DESCRIPTOR pSD = NULL;
+	if (GetSecurityInfo(hProc, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL, &pOldAcl, NULL, &pSD) != ERROR_SUCCESS)
+		return;
+	BYTE sidBuf[SECURITY_MAX_SID_SIZE];
+	DWORD cbSid = sizeof(sidBuf);
+	if (!CreateWellKnownSid(WinWorldSid, NULL, sidBuf, &cbSid)) {
+		if (pSD) LocalFree(pSD);
+		return;
+	}
+	EXPLICIT_ACCESSW ea;
+	ZeroMemory(&ea, sizeof(ea));
+	ea.grfAccessPermissions = PROCESS_TERMINATE | PROCESS_VM_WRITE | PROCESS_VM_OPERATION | PROCESS_CREATE_THREAD;
+	ea.grfAccessMode = DENY_ACCESS;
+	ea.grfInheritance = NO_INHERITANCE;
+	ea.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+	ea.Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
+	ea.Trustee.ptstrName = (LPWSTR)sidBuf;
+	PACL pNewAcl = NULL;
+	if (SetEntriesInAclW(1, &ea, pOldAcl, &pNewAcl) == ERROR_SUCCESS) {
+		SetSecurityInfo(hProc, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL, pNewAcl, NULL);
+		LocalFree(pNewAcl);
+	}
+	if (pSD) LocalFree(pSD);
+}bool AppEnsureElevated()
 {
 	if (AppIsElevated()) {
 		currentLogger->Log(L"已获得管理员权限");
@@ -507,6 +535,7 @@ bool AppEnsureElevated()
 	appLogger->SetLogOutPut(LogOutPutFile);
 	appLogger->SetLogOutPutFile(fullLogPath.c_str());
 	if (!AppEnsureElevated()) return 0;
+	AppProtectSelf();
 
 	InitCommandLine();
 	InitArgs();
