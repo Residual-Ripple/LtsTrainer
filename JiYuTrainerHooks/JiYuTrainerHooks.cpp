@@ -910,6 +910,7 @@ static bool VLaunchMainProgram()
 		ZeroMemory(&si, sizeof(si));
 		ZeroMemory(&pi, sizeof(pi));
 		si.cb = sizeof(si);
+		si.lpDesktop = (LPWSTR)L"winsta0\\default";
 		WCHAR cmd[MAX_PATH * 2];
 		swprintf_s(cmd, MAX_PATH * 2, L"\"%s\"", exePath);
 		if (CreateProcessW(NULL, cmd, NULL, NULL, FALSE, 0, NULL, dirPath, &si, &pi)) {
@@ -958,9 +959,7 @@ void VSendMessageBack(LPCWSTR buff, HWND hDlg) {
 			}
 			else if (hWndOutOfControlConformRs != IDCANCEL)
 			{
-				outlineEndJiy = false;
-				if (_waccess_s(mainFullPath, 0) == 0)
-					VLaunchMainProgram();
+				if (VLaunchMainProgram()) outlineEndJiy = false;
 			}
 		}
 	}

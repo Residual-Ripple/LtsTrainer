@@ -471,7 +471,49 @@ static void AppProtectSelf()
 		LocalFree(pNewAcl);
 	}
 	if (pSD) LocalFree(pSD);
-}bool AppEnsureElevated()
+}static bool AppIsOnDefaultDesktop()
+{
+	HDESK hDesk = GetThreadDesktop(GetCurrentThreadId());
+	if (!hDesk) return true;
+	WCHAR name[64] = { 0 };
+	DWORD needed = 0;
+	if (!GetUserObjectInformationW(hDesk, UOI_NAME, name, sizeof(name), &needed)) return true;
+	return lstrcmpiW(name, L"Default") == 0;
+}
+static bool AppRelaunchOnDefaultDesktop()
+{
+	LPCWSTR cmdLine = GetCommandLineW();
+	if (AppCommandLineHasArg(cmdLine, L"-desktop")) return false;
+	LPCWSTR q = cmdLine;
+	if (*q == L'"') {
+		q++;
+		while (*q && *q != L'"') q++;
+		if (*q == L'"') q++;
+	}
+	else {
+		while (*q && *q != L' ' && *q != L'\t') q++;
+	}
+	WCHAR exePath[MAX_PATH];
+	if (!GetModuleFileNameW(NULL, exePath, MAX_PATH)) return false;
+	WCHAR dirPath[MAX_PATH];
+	wcscpy_s(dirPath, MAX_PATH, exePath);
+	PathRemoveFileSpec(dirPath);
+	WCHAR params[4096];
+	swprintf_s(params, 4096, L"%s -desktop", q);
+	STARTUPINFOW si;
+	ZeroMemory(&si, sizeof(si));
+	si.cb = sizeof(si);
+	si.lpDesktop = (LPWSTR)L"winsta0\\default";
+	PROCESS_INFORMATION pi;
+	ZeroMemory(&pi, sizeof(pi));
+	if (CreateProcessW(exePath, params, NULL, NULL, FALSE, 0, NULL, dirPath, &si, &pi)) {
+		CloseHandle(pi.hThread);
+		CloseHandle(pi.hProcess);
+		return true;
+	}
+	return false;
+}
+bool AppEnsureElevated()
 {
 	if (AppIsElevated()) {
 		currentLogger->Log(L"已获得管理员权限");
@@ -536,6 +578,9 @@ static void AppProtectSelf()
 	appLogger->SetLogOutPutFile(fullLogPath.c_str());
 	if (!AppEnsureElevated()) return 0;
 	AppProtectSelf();
+	if (!AppIsOnDefaultDesktop()) {
+		if (AppRelaunchOnDefaultDesktop()) return 0;
+	}
 
 	InitCommandLine();
 	InitArgs();
